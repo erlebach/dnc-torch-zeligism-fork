@@ -1,6 +1,8 @@
+import einx
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from einops import rearrange
 from memory import Memory
 from torch import Tensor
 from training_configs import *
@@ -32,7 +34,7 @@ class DNC(nn.Module):
         self.init_state()
 
         # Define interface layers
-        self.interface_layer = DNC_InterfaceLayer(
+        self.interface_layer = DNCInterfaceLayer(
             self.controller.hidden_size,
             self.memory.num_writes,
             self.memory.num_reads,
@@ -67,14 +69,13 @@ class DNC(nn.Module):
         This helps presserve memory in an RNN
         """
         self.controller_state = (
-            self.controller_state[0].detach(),  # Original code had detach() here. WHY? 
+            self.controller_state[0].detach(),  # Original code had detach() here. WHY?
             self.controller_state[1].detach(),
         )
         self.read_words.detach_()
         # tuple of states
         self.state_dict["raw_controller_state"] = self.controller_state
         self.state_dict["read_words"] = self.read_words
-        # Is read_words really a part of the states vector?
         self.memory.detach_state()
 
     def debug(self):
@@ -88,25 +89,35 @@ class DNC(nn.Module):
             (sequence_size, batch_size, input_size)
         `read_words` should have dimension:
             (batch_size, num_reads * word_size)
+
+        Return:
+            (sequence_size, batch_size, output_size)
+
         """
         self.detach_state()
 
         outputs = []
+        print(f"forward, {inputs.shape=}")  # (15,8,8)
+        # . inputs.shape: (15, 8, 8)
         for i in range(inputs.size()[0]):
             # We go through the inputs in the sequence one by one.
 
-            # ! X_t = input ++ read_vectors/read_words
+            # . X_t = input ++ read_vectors/read_words
             controller_input = torch.cat(
-                [inputs[i].view(BATCH_SIZE, -1), self.read_words.view(BATCH_SIZE, -1)], dim=1
+                [
+                    rearrange(inputs[i], "b ... -> b (...)"),
+                    rearrange(self.read_words, "b ... -> b (...)"),
+                ],
+                dim=1,
             )
-            # Add sequence dimension
-            controller_input = controller_input.unsqueeze(dim=0)
+            # Add sequence dimension for controller input
+            controller_input = rearrange(controller_input, "b f -> 1 b f")
             # Run one step of controller
             controller_output, self.controller_state = self.controller(
                 controller_input, self.controller_state
             )
-            # Remove sequence dimension
-            controller_output = controller_output.squeeze(dim=0)
+            # Remove sequence dimension from controller output
+            controller_output = rearrange(controller_output, "1 b f -> b f")
 
             """ Compute all the interface tensors by passing
             the controller's output to all the layers, and
@@ -114,16 +125,29 @@ class DNC(nn.Module):
             interface = self.interface_layer(controller_output)
             self.read_words = self.memory.update(interface)
 
-            pre_output = torch.cat([controller_output, self.read_words.view(BATCH_SIZE, -1)], dim=1)
+            # pre_output.shape = (batch, controller_hidden_size + num_reads * word_size)
+            pre_output = torch.cat(
+                [
+                    controller_output,  # (batch, controller_hidden_size)
+                    rearrange(self.read_words, "b ... -> b (...)"),
+                ],
+                dim=1,
+            )
+            # output.shape = (batch, output_size)
             output = self.output_layer(pre_output)
+            print(f"output.shape={output.shape}")  # (8, 5) = (b, 5)
 
             outputs.append(output)
+            # print(f"{len(outputs)=}, {outputs[0].shape=}, {outputs[-1].shape=}")
 
+        # len(outputs) = 15, each element of size (8, 5)
+        print(f"{len(outputs)=}, {outputs[0].shape=}, {outputs[-1].shape=}, {inputs.shape=}")
         return torch.stack(outputs, dim=0)
 
 
-class DNC_InterfaceLayer(nn.Module):
-    """
+class DNCInterfaceLayer(nn.Module):
+    """Create the interfade layer of the DNC.
+
     The interface layer of the DNC.
     Simply applies linear layers to the hidden state of the controller.
     Each linear layer is associated with an interface vector,
@@ -131,7 +155,13 @@ class DNC_InterfaceLayer(nn.Module):
     and activations are applied depending on the type of interface vector.
     """
 
-    def __init__(self, input_size, num_writes, num_reads, word_size):
+    def __init__(
+        self,
+        input_size: int,
+        num_writes: int,
+        num_reads: int,
+        word_size: int,
+    ) -> None:
         super().__init__()
 
         # Read and write keys and their strengths.
@@ -151,7 +181,34 @@ class DNC_InterfaceLayer(nn.Module):
         num_read_modes = 1 + 2 * num_writes
         self.read_modes = LinearView(input_size, [num_reads, num_read_modes])
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> dict[str, Tensor]:
+        """Forward pass of the DNC interface layer.
+
+        Applies linear transformations and appropriate activations to generate interface vectors.
+        These vectors are used by the memory module for read/write operations.
+
+        Args:
+            x: Input tensor of shape (batch_size, input_size) containing the hidden state from the controller.
+
+        Notes:
+            Any of the output linear layers could be either simplified or complexified.
+            For example, the read_strengths could be simplified to a single linear layer,
+            or the read_modes could be complexified to include more modes.
+
+        Returns:
+            Dictionary containing the following interface vectors:
+            - read_keys: Keys for read operations
+            - read_strengths: Strengths for read operations
+            - write_keys: Keys for write operations
+            - write_strengths: Strengths for write operations
+            - erase_vectors: Vectors for erasing memory (sigmoid activated)
+            - write_vectors: Vectors for writing memory (sigmoid activated)
+            - free_gate: Gate for freeing memory (sigmoid activated)
+            - allocation_gate: Gate for memory allocation (sigmoid activated)
+            - write_gate: Gate for write operations (sigmoid activated)
+            - read_modes: Modes for read operations (softmax activated along dim 2)
+
+        """
         return {
             "read_keys": self.read_keys(x),
             "read_strengths": self.read_strengths(x),
@@ -167,12 +224,13 @@ class DNC_InterfaceLayer(nn.Module):
 
 
 class LinearView(nn.Module):
-    """
+    """Output a tensor with size `dim`, similar to linear.
+
     Similar to linear, except that it outputs a tensor with size `dim`.
     It is assumed that the first dimension is the batch dimension.
     """
 
-    def __init__(self, input_size, output_view):
+    def __init__(self, input_size: int, output_view: list[int]) -> None:
         super().__init__()
         # Calculate output size (just the product of dims in output_view)
         output_size = 1
@@ -182,6 +240,21 @@ class LinearView(nn.Module):
         self.layer = nn.Linear(input_size, output_size)
         self.output_view = output_view
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
+        """Forward pass through the LinearView module.
+
+        Args:
+            x: Input tensor of shape (batch_size, input_size).
+
+        Returns:
+            Output tensor reshaped according to output_view, with shape
+            (batch_size, *output_view).
+
+        """
         # -1 because we assume batch dimension exists
-        return self.layer(x).view(-1, *self.output_view)
+        out1 = self.layer(x).view(-1, *self.output_view)
+        # The view operation reshapes the output of the linear layer to match the desired dimensions:
+        # - -1 preserves the batch dimension
+        # - *self.output_view unpacks the list of desired dimensions (e.g., [4, 8] becomes 4, 8)
+        # This results in a tensor with shape (batch_size, *output_view)
+        return out1
