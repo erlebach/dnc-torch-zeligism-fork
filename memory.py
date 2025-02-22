@@ -1,10 +1,10 @@
 from typing import TypedDict, TypeVar
 
-import einops
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from beartype import beartype
+from einops import einsum, rearrange, reduce
 from jaxtyping import Float
 from torch import Tensor
 
@@ -15,12 +15,13 @@ Memory.
 """
 
 # Define dimension type variables. Used in TypedDict.
+"""
 num_reads = TypeVar("num_reads")
 num_writes = TypeVar("num_writes")
 word_size = TypeVar("word_size")
-word_size1 = TypeVar("word_size+1")
 num_read_modes = TypeVar("num_read_modes")
 memory_size = TypeVar("memory_size")
+"""
 
 
 @beartype
@@ -124,10 +125,11 @@ class Memory:
 
     def content_based_address(
         self,
-        memory_data: Tensor,
-        keys: Tensor,
-        strengths: Tensor,
-    ) -> Tensor:
+        memory_data: Float[Tensor, "batch memory_size word_size"],
+        keys: Float[Tensor, "batch num_heads word_size"],
+        strengths: Float[Tensor, "batch num_heads"],
+        # Wrong order in type hint not caught
+    ) -> Float[Tensor, "batch num_heads memory_size"]:
         """Implement content-based addressing.
 
         Content-based addressing.
@@ -152,8 +154,8 @@ class Memory:
         # print(f"...keys.shape={keys.shape}")  # 8, 4, 32 [8,1,8, then 8,4,8]
         # print(f"...memory_data.shape={memory_data.shape}")  # 8, 128, 32 [8,32,8]
         cosine_similarity = F.cosine_similarity(
-            einops.rearrange(keys, "b h w -> b h 1 w"),
-            einops.rearrange(memory_data, "b m w -> b 1 m w"),
+            rearrange(keys, "b h w -> b h 1 w"),
+            rearrange(memory_data, "b m w -> b 1 m w"),
             dim=3,
             eps=self.config["epsilon"],
         )  # (batch, num_heads, memory_size)
@@ -161,14 +163,17 @@ class Memory:
 
         # Transform strengths using the oneplus(x) function.
         # strengths = 1 + F.softplus(strengths).unsqueeze(dim=2)
-        strengths = 1 + F.softplus(einops.rearrange(strengths, "b h -> b h 1"))
+        strengths = 1 + F.softplus(rearrange(strengths, "b h -> b h 1"))
 
         # Get the content-based weights using the weighted softmax method
         content_weights = F.softmax(cosine_similarity * strengths, dim=2)
 
         return content_weights  # noqa: RET504
 
-    def update(self, interface: MemoryInterface) -> Tensor:
+    def update(
+        self,
+        interface: MemoryInterface,
+    ) -> Float[Tensor, "batch num_reads memory_size"]:
         """Update the current state of the memory.
 
         Updates the current state of the memory. Returns the words read by memory.
@@ -177,8 +182,12 @@ class Memory:
         is needed in an update-subroutine, then it should be passed to it.
 
         Args:
-        `Interface` is a dictionary of of tensors that describe how the memory
-        should be updated and how the data should be retrieved and written.
+            interface: MemoryInterface
+            `Interface` is a dictionary of of tensors that describe how the memory
+            should be updated and how the data should be retrieved and written.
+
+        Returns:
+            Float[Tensor, "batch num_reads memory_size"]
 
         The names of each tensor in the interface is
         the following (batch dimension not included):
@@ -270,6 +279,12 @@ class Memory:
         # ) -> Tensor:
         """Calculate and return the next/current `usage`.
 
+        Args:
+            free_gate: Float[Tensor, "batch num_reads"]
+
+        Returns:
+            Float[Tensor, "batch memory_size"]
+
         Takes `free_gate` from the `interface` vector as an input, and also uses
         previous `write_weights`, previous `read_weights`, and previous `usage`.
         Assumes that the memory has the previous states stored in `self` directly.
@@ -297,12 +312,21 @@ class Memory:
 
     def update_write_weights(
         self,
-        usage: Tensor,
-        write_gate: Tensor,
-        allocation_gate: Tensor,
-        write_content_weights: Tensor,
-    ) -> Tensor:
+        usage: Float[Tensor, "batch memory_size"],
+        write_gate: Float[Tensor, "batch num_writes"],
+        allocation_gate: Float[Tensor, "batch num_writes"],
+        write_content_weights: Float[Tensor, "batch num_writes memory_size"],
+    ) -> Float[Tensor, "batch num_writes memory_size"]:
         """Calculate and return the next/current `write_weights`.
+
+        Args:
+            usage: Float[Tensor, "batch memory_size"]
+            write_gate: Float[Tensor, "batch num_writes"]
+            allocation_gate: Float[Tensor, "batch num_writes"]
+            write_content_weights: Float[Tensor, "batch num_writes memory_size"]
+
+        Returns:
+            Float[Tensor, "batch num_writes memory_size"]
 
         Calculates and returns the next/current `write_weights`.
         It's pretty similar to the one in DeepMind's code.
@@ -331,10 +355,17 @@ class Memory:
 
     def write_allocation_weights(
         self,
-        write_alloc_gates: Tensor,
-        usage: Tensor,
-    ) -> Tensor:
+        write_alloc_gates: Float[Tensor, "batch num_writes"],
+        usage: Float[Tensor, "batch memory_size"],
+    ) -> Float[Tensor, "batch num_writes memory_size"]:
         """Calculate and returns the write weights due to allocation.
+
+        Args:
+            write_alloc_gates: Float[Tensor, "batch num_writes"]
+            usage: Float[Tensor, "batch memory_size"]
+
+        Returns:
+            Float[Tensor, "batch num_writes memory_size"]
 
         Calculates and returns the write weights due to allocation.
         The returned tensor will have size of (BATCH_SIZE, num_writes, memory_size).
@@ -363,8 +394,17 @@ class Memory:
         # Stack allocation weights into one tensor and return
         return torch.stack(write_allocation_weights, dim=1)
 
-    def allocation(self, usage: Tensor) -> Tensor:
+    def allocation(
+        self,
+        usage: Float[Tensor, "batch memory_size"],
+    ) -> Float[Tensor, "batch memory_size"]:
         """Return allocation weightings for one write head given usage.
+
+        Args:
+            usage: Float[Tensor, "batch memory_size"]
+
+        Returns:
+            Float[Tensor, "batch memory_size"]
 
         Sort of a subroutine that runs in `update_write_weights(...)`.
         Returns the allocation weightings for one write head given the usage.
@@ -395,11 +435,19 @@ class Memory:
 
     def update_memory_data(
         self,
-        weights: Tensor,
-        erases: Tensor,
-        writes: Tensor,
-    ) -> Tensor:
+        weights: Float[Tensor, "batch num_writes memory_size"],
+        erases: Float[Tensor, "batch num_writes word_size"],
+        writes: Float[Tensor, "batch num_writes word_size"],
+    ) -> Float[Tensor, "batch memory_size word_size"]:
         """Update the data of the memory. Returns the updated memory.
+
+        Args:
+            weights: Float[Tensor, "batch num_writes memory_size"]
+            erases: Float[Tensor, "batch num_writes memory_size"]
+            writes: Float[Tensor, "batch num_writes memory_size"]
+
+        Returns:
+            Float[Tensor, "batch memory_size word_size"]
 
         The equation in the paper is I believe equivalent to this:
               memory_data * erase_factor   +   write_words
@@ -417,13 +465,27 @@ class Memory:
         erase_factor = torch.prod(1 - weighted_erase, dim=1)
 
         # Calculate the weighted words to add/write to memory.
-        write_words = weights.transpose(1, 2) @ writes
+        write_words = einsum(weights, writes, "b w m, b w w_s -> b m w_s")
 
         # Return the updated memory
         return self.memory_data * erase_factor + write_words
 
-    def update_linkage(self, write_weights: Tensor) -> tuple[Tensor, Tensor]:
+    def update_linkage(
+        self,
+        write_weights: Float[Tensor, "batch num_writes memory_size"],
+    ) -> tuple[
+        Float[Tensor, "batch num_writes memory_size memory_size"],
+        Float[Tensor, "batch num_writes memory_size"],
+    ]:
         """Update the temporal linkage.
+
+        Args:
+            write_weights: Float[Tensor, "batch num_writes memory_size"]
+
+        Returns:
+            Tuple[Float[Tensor, "batch num_writes memory_size memory_size"],
+            Float[Tensor, "batch num_writes memory_size memory_size"],
+            ]
 
         Returns a tuple (link, precedence_weights)
 
@@ -452,20 +514,26 @@ class Memory:
 
         # Calculate precedence weightings
         precedence_weights = write_weights + self.precedence_weights * (
-            1 - write_weights.sum(dim=2, keepdim=True)
+            1 - reduce(write_weights, "b w m -> b w 1", reduction="sum")
         )
 
         return link, precedence_weights
 
     def update_read_weights(
         self,
-        link: Tensor,
-        read_modes: Tensor,
-        content_weights: Tensor,
-    ) -> Tensor:
+        link: Float[Tensor, "batch num_reads num_writes memory_size"],
+        read_modes: Float[Tensor, "batch num_reads num_writes"],
+        content_weights: Float[Tensor, "batch num_reads memory_size"],
+    ) -> Float[Tensor, "batch num_reads memory_size"]:
         """Update read weights.
 
-        `content_weights` (BATCH_SIZE, num_reads, memory_size)
+        Args:
+            link: Float[Tensor, "batch num_reads num_writes memory_size"]
+            read_modes: Float[Tensor, "batch num_reads num_writes"]
+            content_weights: Float[Tensor, "batch num_reads memory_size"]
+
+        Returns:
+            Float[Tensor, "batch num_reads memory_size"]
 
         """
         # Calculate the directional read weights
@@ -484,6 +552,7 @@ class Memory:
         backward_mode = read_modes[..., backward_mode_range].unsqueeze(dim=-1)
         forward_mode = read_modes[..., forward_mode_range].unsqueeze(dim=-1)
         content_mode = read_modes[..., content_mode_range]
+        # x = rearrange(read_modes[..., backward_mode_range], '... -> ... 1')
 
         # Get the final read weightings depending on the focus of the current
         # mode using the modes weights to interpolate among the three read weights.
@@ -494,10 +563,19 @@ class Memory:
 
         return backward_read + forward_read + content_read
 
-    def directional_read_weights(self, link: Tensor, forward: bool) -> Tensor:
+    def directional_read_weights(
+        self,
+        link: Float[Tensor, "batch num_reads num_writes memory_size"],
+        forward: bool,
+    ) -> Float[Tensor, "batch num_reads num_writes memory_size"]:
         """Calculate the directional read weights.
 
-        Returns a tensor of size (BATCH_SIZE, num_reads, num_writes, memory_size).
+        Args:
+            link: Float[Tensor, "batch num_reads num_writes memory_size"]
+            forward: bool
+
+        Returns:
+            Float[Tensor, "batch num_reads num_writes memory_size"]
 
         This function is pretty tricky to understand well, and it does only one
         little thing, which is multiply the link  with the read_weights.
