@@ -22,12 +22,13 @@ NUM_WRITES = 1
 NUM_READS = 4
 
 config = {}
-config["memory_size"] = MEMORY_SIZE
-config["word_size"] = WORD_SIZE
-config["num_writes"] = NUM_WRITES
-config["num_reads"] = NUM_READS
-config["hidden_size"] = HIDDEN_SIZE
-config["num_layers"] = NUM_LAYERS
+# config["memory_size"] = MEMORY_SIZE
+# config["word_size"] = WORD_SIZE
+# config["num_writes"] = NUM_WRITES
+# config["num_reads"] = NUM_READS
+# config["hidden_size"] = HIDDEN_SIZE
+# config["num_layers"] = NUM_LAYERS
+
 config["random_seed"] = RANDOM_SEED
 config["batch_size"] = BATCH_SIZE
 config["epsilon"] = EPSILON
@@ -35,3 +36,15 @@ config["learning_rate"] = LEARNING_RATE
 config["momentum"] = MOMENTUM
 config["num_examples"] = NUM_EXAMPLES
 config["checkpoint"] = NUM_EXAMPLES // 200
+
+# Define controller and memory configurations
+controller_config = {
+    "hidden_size": HIDDEN_SIZE,
+    "num_layers": NUM_LAYERS,
+}
+memory_config = {
+    "memory_size": MEMORY_SIZE,
+    "word_size": WORD_SIZE,
+    "num_writes": NUM_WRITES,
+    "num_reads": NUM_READS,
+}
