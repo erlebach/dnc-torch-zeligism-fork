@@ -1,11 +1,11 @@
-"""This is my own version of repeat copy."""
+"""My own version of repeat copy."""
+
+from typing import Generator
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F  # noqa: N812
 from torch import Tensor
-from torch.autograd import Variable
-from training_configs import config, controller_config, memory_config
+from training_configs import config
 
 """
 This is my own version of repeat copy.
@@ -87,15 +87,15 @@ class RepeatCopy:
         self.output_size = num_bits + 1
 
         # This variable should hold the inputs' lengths from the last example
-        self.inputs_lengths = None
+        self.inputs_lengths = torch.zeros(1)
 
-    def generate(self, num_examples):
+    def generate(self, num_examples: int) -> Generator:
         """Generate `num_examples` examples using `example()`."""
         for _ in range(num_examples):
             yield self.example()
 
     def example(self) -> tuple[Tensor, Tensor]:
-        """Fetches/creates the next repeat-copy example.
+        """Fetche/create the next repeat-copy example.
 
         Also Updates the lengths of the bits in each batch element.
 
@@ -109,7 +109,7 @@ class RepeatCopy:
         repeats = torch.IntTensor(batch_size).random_(self.min_repeats, self.max_repeats + 1)
 
         # Total sequence length is input bits + repeats * bits + channels
-        seq_length = torch.max(bits_lengths + repeats * bits_lengths + 3)
+        seq_length = torch.max(bits_lengths + repeats * bits_lengths + 3).item()
         # Fill inputs and outputs with zeros
         inputs = torch.zeros(seq_length, batch_size, self.input_size)
         outputs = torch.zeros(seq_length, batch_size, self.output_size)
@@ -121,7 +121,7 @@ class RepeatCopy:
             target_end = target_start + repeats[i] * bits_lengths[i]
 
             # Create `num_bits` random binary bits of length `obs_length`
-            bits = torch.bernoulli(0.5 * torch.ones(bits_lengths[i], self.num_bits))
+            bits = torch.bernoulli(0.5 * torch.ones(bits_lengths[i].item(), self.num_bits))
 
             # Inputs starts with a marker at `start_channel`
             inputs[0, i, start_channel] = 1
@@ -142,7 +142,7 @@ class RepeatCopy:
 
         return inputs, outputs
 
-    def loss(self, pred_outputs, true_outputs) -> Tensor:
+    def loss(self, pred_outputs: Tensor, true_outputs: Tensor) -> Tensor:
         """Calculate a more refined loss.
 
         Calculates a more refined loss(or distance if you like)
