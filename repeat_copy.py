@@ -2,9 +2,13 @@
 
 from typing import Generator
 
+from beartype import beartype
 import torch
 import torch.nn.functional as F  # noqa: N812
+from beartype import beartype as typechecker
+from jaxtyping import Array, Float
 from torch import Tensor
+
 from training_configs import config
 
 """
@@ -12,6 +16,7 @@ This is my own version of repeat copy.
 """
 
 
+@beartype
 class RepeatCopy:
     """A class for generating and processing repeat-copy tasks.
 
@@ -142,7 +147,11 @@ class RepeatCopy:
 
         return inputs, outputs
 
-    def loss(self, pred_outputs: Tensor, true_outputs: Tensor) -> Tensor:
+    def loss(
+        self,
+        pred_outputs: Float[Tensor, "seq_length batch_size output_size"],
+        true_outputs: Float[Tensor, "seq_length batch_size output_size"],
+    ) -> Float[Tensor, ""]:  # Tensor:
         """Calculate a more refined loss.
 
         Calculates a more refined loss(or distance if you like)
@@ -162,13 +171,17 @@ class RepeatCopy:
             pred_outputs[: inputs_lengths[i], i, :] = 0
 
         # Calculate the accumulated MSE Loss for all time steps
-        loss = 0
+        loss = torch.tensor(0.0)
         for t in range(true_outputs.size()[0]):
             loss += F.mse_loss(pred_outputs[t, ...], true_outputs[t, ...])
 
         return loss
 
-    def report(self, data, pred_outputs):
+    def report(
+        self,
+        data: tuple[Tensor, Tensor],
+        pred_outputs: Float[Tensor, "seq_length batch_size output_size"],
+    ):
         """Print a report from data from example().
 
         Prints a simple report given the `data` produced by the last call of
