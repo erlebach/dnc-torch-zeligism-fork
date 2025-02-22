@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from beartype import beartype
 from einops import rearrange
+from jaxtyping import Float
 from torch import Tensor
 
 from memory import Memory
@@ -18,7 +19,7 @@ class DNC(nn.Module):
         controller_config: dict = controller_config,
         memory_config: dict = memory_config,
         config: dict = config,
-        controller: nn.Module = nn.LSTM,  # Class (should be polymorphic)
+        controller: type[nn.Module] = nn.LSTM,  # Class (should be polymorphic)
     ) -> None:
         """Initialize the DNC object."""
         super().__init__()
@@ -38,7 +39,7 @@ class DNC(nn.Module):
 
         # Define interface layers
         self.interface_layer = DNCInterfaceLayer(
-            self.controller.hidden_size,
+            self.controller.hidden_size,  # specific to LSTM (64). Won't work for another type.
             self.memory.num_writes,
             self.memory.num_reads,
             self.memory.word_size,
@@ -247,7 +248,7 @@ class LinearView(nn.Module):
         self.layer = nn.Linear(input_size, output_size)
         self.output_view = output_view
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Float[Tensor, "b h"]) -> Float[Tensor, "b *o"]:
         """Forward pass through the LinearView module.
 
         Args:
@@ -260,7 +261,8 @@ class LinearView(nn.Module):
         """
         # -1 because we assume batch dimension exists
         out1 = self.layer(x).view(-1, *self.output_view)
-        # The view operation reshapes the output of the linear layer to match the desired dimensions:
+        # The view operation reshapes the output of the linear layer to match
+        #   the desired dimensions:
         # - -1 preserves the batch dimension
         # - *self.output_view unpacks the list of desired dimensions (e.g., [4, 8] becomes 4, 8)
         # This results in a tensor with shape (batch_size, *output_view)
