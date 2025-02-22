@@ -1,17 +1,57 @@
+from typing import TypedDict, TypeVar
+
 import einops
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-# from jaxtyping import Float
+from beartype import beartype
+from jaxtyping import Float
 from torch import Tensor
+
 from training_configs import config
 
 """
 Memory.
 """
 
+# Define dimension type variables. Used in TypedDict.
+num_reads = TypeVar("num_reads")
+num_writes = TypeVar("num_writes")
+word_size = TypeVar("word_size")
+word_size1 = TypeVar("word_size+1")
+num_read_modes = TypeVar("num_read_modes")
+memory_size = TypeVar("memory_size")
 
+
+@beartype
+class MemoryInterface(TypedDict):
+    """Type-safe interface for memory operations.
+
+    This class defines the expected structure of the interface for memory operations.
+    It ensures type safety and clarity in the usage of tensors in memory operations.
+
+    The interface includes the following tensors:
+    - read_keys: (num_reads, word_size)
+    - read_strengths: (num_reads)
+    - write_keys: (num_writes, word_size)
+    - write_strengths: (num_writes)
+    - erase_vectors: (num_writes, word_size)
+
+    """
+
+    read_keys: Float[Tensor, "batch num_reads word_size"]
+    read_strengths: Float[Tensor, "batch num_reads"]
+    write_keys: Float[Tensor, "batch num_writes word_size"]
+    write_strengths: Float[Tensor, "batch num_writes"]
+    erase_vectors: Float[Tensor, "batch num_writes word_size"]
+    write_vectors: Float[Tensor, "batch num_writes word_size"]
+    free_gate: Float[Tensor, "batch num_reads"]
+    allocation_gate: Float[Tensor, "batch num_writes"]
+    write_gate: Float[Tensor, "batch num_writes"]
+    read_modes: Float[Tensor, "batch num_reads num_read_modes"]
+
+
+@beartype
 class Memory:
     def __init__(
         self,
@@ -128,7 +168,7 @@ class Memory:
 
         return content_weights  # noqa: RET504
 
-    def update(self, interface: dict[str, Tensor]) -> Tensor:
+    def update(self, interface: MemoryInterface) -> Tensor:
         """Update the current state of the memory.
 
         Updates the current state of the memory. Returns the words read by memory.
@@ -223,7 +263,11 @@ class Memory:
         # Return the new read words for each read head from new memory data
         return read_weights_t @ memory_data_t
 
-    def update_usage(self, free_gate: Tensor) -> Tensor:
+    def update_usage(
+        self,
+        free_gate: Float[Tensor, "batch num_reads"],
+    ) -> Float[Tensor, "batch memory_size"]:
+        # ) -> Tensor:
         """Calculate and return the next/current `usage`.
 
         Takes `free_gate` from the `interface` vector as an input, and also uses
