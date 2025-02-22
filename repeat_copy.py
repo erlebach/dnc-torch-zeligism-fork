@@ -1,9 +1,11 @@
+"""This is my own version of repeat copy."""
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as F  # noqa: N812
 from torch import Tensor
 from torch.autograd import Variable
-from training_configs import *
+from training_configs import config, controller_config, memory_config
 
 """
 This is my own version of repeat copy.
@@ -43,6 +45,7 @@ class RepeatCopy:
         max_length: int = 3,
         min_repeats: int = 1,
         max_repeats: int = 3,
+        config: dict = config,
     ) -> None:
         """Initialize the RepeatCopy task configuration.
 
@@ -57,16 +60,27 @@ class RepeatCopy:
             AssertionError: If any of the input constraints are violated.
 
         """
+
+        class NonPositiveBitsError(ValueError):
+            """Error for when number of bits is not positive."""
+
+        class InvalidLengthError(ValueError):
+            """Error for when sequence length constraints are violated."""
+
         # Check for obvious errors and save configs
-        assert num_bits > 0
-        assert 1 <= min_length and min_length <= max_length
-        assert 0 <= min_repeats and min_repeats <= max_repeats
+        if num_bits <= 0:
+            raise NonPositiveBitsError
+        if min_length < 1 or min_length > max_length:
+            raise InvalidLengthError
+        if min_repeats < 0 or min_repeats > max_repeats:
+            raise InvalidLengthError
 
         self.num_bits = num_bits
         self.min_length = min_length
         self.max_length = max_length
         self.min_repeats = min_repeats
         self.max_repeats = max_repeats
+        self.config = config
 
         # Input and output sizes are fixed for the given parameters
         self.input_size = num_bits + 2 + max_repeats - min_repeats
@@ -88,18 +102,19 @@ class RepeatCopy:
         """
         # Index for the start marker
         start_channel = self.num_bits
+        batch_size = config["batch_size"]
 
         # Get the length of observations and repeats
-        bits_lengths = torch.IntTensor(BATCH_SIZE).random_(self.min_length, self.max_length + 1)
-        repeats = torch.IntTensor(BATCH_SIZE).random_(self.min_repeats, self.max_repeats + 1)
+        bits_lengths = torch.IntTensor(batch_size).random_(self.min_length, self.max_length + 1)
+        repeats = torch.IntTensor(batch_size).random_(self.min_repeats, self.max_repeats + 1)
 
         # Total sequence length is input bits + repeats * bits + channels
         seq_length = torch.max(bits_lengths + repeats * bits_lengths + 3)
         # Fill inputs and outputs with zeros
-        inputs = torch.zeros(seq_length, BATCH_SIZE, self.input_size)
-        outputs = torch.zeros(seq_length, BATCH_SIZE, self.output_size)
+        inputs = torch.zeros(seq_length, batch_size, self.input_size)
+        outputs = torch.zeros(seq_length, batch_size, self.output_size)
 
-        for i in range(BATCH_SIZE):
+        for i in range(batch_size):
             # Handy sequence indices to improve readability
             obs_end = bits_lengths[i] + 1
             target_start = bits_lengths[i] + 2
@@ -127,7 +142,7 @@ class RepeatCopy:
 
         return inputs, outputs
 
-    def loss(self, pred_outputs, true_outputs):
+    def loss(self, pred_outputs, true_outputs) -> Tensor:
         """Calculate a more refined loss.
 
         Calculates a more refined loss(or distance if you like)
@@ -140,9 +155,10 @@ class RepeatCopy:
 
         """
         inputs_lengths = self.inputs_lengths
+        batch_size = self.config["batch_size"]
 
         # Clean predictions made during input
-        for i in range(BATCH_SIZE):
+        for i in range(batch_size):
             pred_outputs[: inputs_lengths[i], i, :] = 0
 
         # Calculate the accumulated MSE Loss for all time steps
@@ -164,9 +180,9 @@ class RepeatCopy:
         """
         inputs, true_outputs = data
         inputs_lengths = self.inputs_lengths
-
+        batch_size = self.config["batch_size"]
         # Pick a random batch number
-        i = torch.IntTensor(1).random_(1, BATCH_SIZE).item()
+        i = torch.IntTensor(1).random_(1, batch_size).item()
 
         # Show the true outputs and the (rounded) predictions
         print()

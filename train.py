@@ -3,10 +3,11 @@ import time
 import torch
 from dnc import DNC
 from repeat_copy import RepeatCopy
+from torch import Tensor
 from training_configs import config, controller_config, memory_config
 
 
-def train(dnc: DNC, dataset: RepeatCopy, config: dict):
+def train(dnc: DNC, dataset: RepeatCopy, config: dict) -> None:
     # Initialize optimizer and loss function
     optimizer = torch.optim.SGD(
         dnc.parameters(), lr=config["learning_rate"], momentum=config["momentum"]
@@ -25,7 +26,7 @@ def train(dnc: DNC, dataset: RepeatCopy, config: dict):
 
         # Do a forward pass, compute loss, then do a backward pass
         pred_outputs = dnc(inputs)
-        loss = dataset.loss(pred_outputs, true_outputs)
+        loss: Tensor = dataset.loss(pred_outputs, true_outputs)
         loss.backward()
 
         # Update parameters using the optimizer
@@ -35,16 +36,16 @@ def train(dnc: DNC, dataset: RepeatCopy, config: dict):
         if (i + 1) % config["checkpoint"] == 0:
             dataset.report(data, pred_outputs.data)
             # dnc.debug()
-            print("[%d/%d] Loss = %.3f" % (i + 1, config["num_examples"], loss.item()))
-            print("Time elapsed = %ds" % (time.time() - start_time))
+            print(f"[{i+1}/{config['num_examples']}] Loss = {loss.item()}")
+            print(f"Time elapsed = {time.time() - start_time}")
 
 
-def main(config: dict):
+def main(config: dict) -> None:
     # Set random seed if given
     torch.manual_seed(config["random_seed"] or torch.initial_seed())
 
     # Choose dataset and initialize size of data's input and output
-    dataset = RepeatCopy()  # default parameters
+    dataset = RepeatCopy(config=config)  # default parameters
 
     # Initialize DNC
     dnc = DNC(dataset.input_size, dataset.output_size, controller_config, memory_config)
