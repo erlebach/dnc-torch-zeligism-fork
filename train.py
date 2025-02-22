@@ -1,12 +1,15 @@
 import time
 
 import torch
+from beartype import beartype
+from torch import Tensor
+
 from dnc import DNC
 from repeat_copy import RepeatCopy
-from torch import Tensor
 from training_configs import config, controller_config, memory_config
 
 
+@beartype
 def train(dnc: DNC, dataset: RepeatCopy, config: dict) -> None:
     # Initialize optimizer and loss function
     optimizer = torch.optim.SGD(
@@ -40,6 +43,7 @@ def train(dnc: DNC, dataset: RepeatCopy, config: dict) -> None:
             print(f"Time elapsed = {time.time() - start_time}")
 
 
+@beartype
 def main(config: dict) -> None:
     # Set random seed if given
     torch.manual_seed(config["random_seed"] or torch.initial_seed())
@@ -48,7 +52,7 @@ def main(config: dict) -> None:
     dataset = RepeatCopy(config=config)  # default parameters
 
     # Initialize DNC
-    dnc = DNC(dataset.input_size, dataset.output_size, controller_config, memory_config)
+    dnc = DNC(dataset.input_size, dataset.output_size, controller_config, memory_config, config)
 
     train(dnc, dataset, config)
 

@@ -1,20 +1,24 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from beartype import beartype
 from einops import rearrange
-from memory import Memory
 from torch import Tensor
-from training_configs import *
+
+from memory import Memory
+from training_configs import config, controller_config, memory_config
 
 
+@beartype
 class DNC(nn.Module):
     def __init__(
         self,
         input_size: int,
         output_size: int,
-        controller_config: dict,
-        memory_config: dict,
-        controller=nn.LSTM,  # Class (should be polymorphic)
+        controller_config: dict = controller_config,
+        memory_config: dict = memory_config,
+        config: dict = config,
+        controller: nn.Module = nn.LSTM,  # Class (should be polymorphic)
     ) -> None:
         """Initialize the DNC object."""
         super().__init__()
@@ -53,11 +57,13 @@ class DNC(nn.Module):
         num_layers = self.controller.num_layers
         hidden_size = self.controller.hidden_size
         self.controller_state = (
-            torch.zeros(num_layers, BATCH_SIZE, hidden_size),
-            torch.zeros(num_layers, BATCH_SIZE, hidden_size),
+            torch.zeros(num_layers, config["batch_size"], hidden_size),
+            torch.zeros(num_layers, config["batch_size"], hidden_size),
         )
         # Initialize read_words state
-        self.read_words = torch.zeros(BATCH_SIZE, self.memory.num_reads, self.memory.word_size)
+        self.read_words = torch.zeros(
+            config["batch_size"], self.memory.num_reads, self.memory.word_size
+        )
         # tuple of states
         self.state_dict["raw_controller_state"] = self.controller_state
         self.state_dict["read_words"] = self.read_words
@@ -144,6 +150,7 @@ class DNC(nn.Module):
         return torch.stack(outputs, dim=0)
 
 
+@beartype
 class DNCInterfaceLayer(nn.Module):
     """Create the interfade layer of the DNC.
 
@@ -222,6 +229,7 @@ class DNCInterfaceLayer(nn.Module):
         }
 
 
+@beartype
 class LinearView(nn.Module):
     """Output a tensor with size `dim`, similar to linear.
 
