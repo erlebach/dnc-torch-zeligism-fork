@@ -3,30 +3,20 @@ import time
 import torch
 from dnc import DNC
 from repeat_copy import RepeatCopy
-from training_configs import *
-
-# Define controller and memory configurations
-controller_config = {
-    "hidden_size": HIDDEN_SIZE,
-    "num_layers": NUM_LAYERS,
-}
-memory_config = {
-    "memory_size": MEMORY_SIZE,
-    "word_size": WORD_SIZE,
-    "num_writes": NUM_WRITES,
-    "num_reads": NUM_READS,
-}
+from training_configs import config, controller_config, memory_config
 
 
-def train(dnc, dataset):
+def train(dnc: DNC, dataset: RepeatCopy, config: dict):
     # Initialize optimizer and loss function
-    optimizer = torch.optim.SGD(dnc.parameters(), lr=LEARNING_RATE, momentum=MOMENTUM)
+    optimizer = torch.optim.SGD(
+        dnc.parameters(), lr=config["learning_rate"], momentum=config["momentum"]
+    )
     # Adam seems to be faster (maybe)
     optimizer = torch.optim.Adam(dnc.parameters())
 
     # Define input and its true output
     start_time = time.time()
-    for i, data in enumerate(dataset.generate(NUM_EXAMPLES)):
+    for i, data in enumerate(dataset.generate(config["num_examples"])):
         # Zero gradients
         optimizer.zero_grad()
 
@@ -42,16 +32,16 @@ def train(dnc, dataset):
         optimizer.step()
 
         # Print report when we reach a checkpoint
-        if (i + 1) % CHECKPOINT == 0:
+        if (i + 1) % config["checkpoint"] == 0:
             dataset.report(data, pred_outputs.data)
             # dnc.debug()
-            print("[%d/%d] Loss = %.3f" % (i + 1, NUM_EXAMPLES, loss.item()))
+            print("[%d/%d] Loss = %.3f" % (i + 1, config["num_examples"], loss.item()))
             print("Time elapsed = %ds" % (time.time() - start_time))
 
 
-def main():
+def main(config: dict):
     # Set random seed if given
-    torch.manual_seed(RANDOM_SEED or torch.initial_seed())
+    torch.manual_seed(config["random_seed"] or torch.initial_seed())
 
     # Choose dataset and initialize size of data's input and output
     dataset = RepeatCopy()  # default parameters
@@ -59,8 +49,8 @@ def main():
     # Initialize DNC
     dnc = DNC(dataset.input_size, dataset.output_size, controller_config, memory_config)
 
-    train(dnc, dataset)
+    train(dnc, dataset, config)
 
 
 if __name__ == "__main__":
-    main()
+    main(config)
