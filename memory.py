@@ -6,7 +6,7 @@ import torch.nn.functional as F
 
 # from jaxtyping import Float
 from torch import Tensor
-from training_configs import *
+from training_configs import config
 
 """
 Memory.
@@ -20,9 +20,11 @@ class Memory:
         word_size: int = 20,
         num_writes: int = 1,
         num_reads: int = 1,
+        config: dict = config,
     ) -> None:
         """Create memory instance."""
         # Initialize memory parameters sizes
+        self.config = config
         self.memory_size = memory_size
         self.word_size = word_size
         self.num_writes = num_writes
@@ -31,13 +33,15 @@ class Memory:
         self.init_state()
 
     def init_state(self) -> None:
+        """Initialize the state of the mmeory."""
         self.state_dict = {}
-        self.memory_data = torch.zeros(BATCH_SIZE, self.memory_size, self.word_size)
-        self.read_weights = torch.zeros(BATCH_SIZE, self.num_reads, self.memory_size)
-        self.write_weights = torch.zeros(BATCH_SIZE, self.num_writes, self.memory_size)
-        self.precedence_weights = torch.zeros(BATCH_SIZE, self.num_writes, self.memory_size)
-        self.link = torch.zeros(BATCH_SIZE, self.num_writes, self.memory_size, self.memory_size)
-        self.usage = torch.zeros(BATCH_SIZE, self.memory_size)
+        batch_size = self.config["batch_size"]
+        self.memory_data = torch.zeros(batch_size, self.memory_size, self.word_size)
+        self.read_weights = torch.zeros(batch_size, self.num_reads, self.memory_size)
+        self.write_weights = torch.zeros(batch_size, self.num_writes, self.memory_size)
+        self.precedence_weights = torch.zeros(batch_size, self.num_writes, self.memory_size)
+        self.link = torch.zeros(batch_size, self.num_writes, self.memory_size, self.memory_size)
+        self.usage = torch.zeros(batch_size, self.memory_size)
 
         self.state_dict["memory_data"] = self.memory_data
         self.state_dict["read_weights"] = self.read_weights
@@ -46,7 +50,7 @@ class Memory:
         self.state_dict["link"] = self.link
         self.state_dict["usage"] = self.usage
 
-    def detach_state(self):
+    def detach_state(self) -> None:
         """Detach all state tensors in place.
 
         Writing to the detached tensors will affect the original tensors (detach_).
@@ -73,7 +77,7 @@ class Memory:
                 v.detach_()
         """
 
-    def debug(self):
+    def debug(self) -> Tensor:
         """Debug memory."""
         print("-----------------------------------")
         print(self.memory_data[0, ...])
@@ -106,15 +110,15 @@ class Memory:
         # cosine_similarity = F.cosine_similarity(
         #     keys.unsqueeze(dim=2), memory_data.unsqueeze(dim=1), dim=3, eps=EPSILON
         # )
-        print(f"...keys.shape={keys.shape}")  # 8, 4, 32 [8,1,8, then 8,4,8]
-        print(f"...memory_data.shape={memory_data.shape}")  # 8, 128, 32 [8,32,8]
+        # print(f"...keys.shape={keys.shape}")  # 8, 4, 32 [8,1,8, then 8,4,8]
+        # print(f"...memory_data.shape={memory_data.shape}")  # 8, 128, 32 [8,32,8]
         cosine_similarity = F.cosine_similarity(
             einops.rearrange(keys, "b h w -> b h 1 w"),
             einops.rearrange(memory_data, "b m w -> b 1 m w"),
             dim=3,
-            eps=EPSILON,
+            eps=self.config["epsilon"],
         )  # (batch, num_heads, memory_size)
-        print(f"...cosine_similarity.shape={cosine_similarity.shape}")  # 8, 1, 32 or 8, 4, 32
+        # print(f"...cosine_similarity.shape={cosine_similarity.shape}")  # 8, 1, 32 or 8, 4, 32
 
         # Transform strengths using the oneplus(x) function.
         # strengths = 1 + F.softplus(strengths).unsqueeze(dim=2)
@@ -125,7 +129,7 @@ class Memory:
 
         return content_weights  # noqa: RET504
 
-    def update(self, interface: dict[str, Tensor]):
+    def update(self, interface: dict[str, Tensor]) -> Tensor:
         """Update the current state of the memory.
 
         Updates the current state of the memory. Returns the words read by memory.
@@ -324,13 +328,16 @@ class Memory:
         Note that `allocation_weights_per_write` has the same size as `usage`.
 
         """
-        usage = EPSILON + (1 - EPSILON) * usage  # Avoid very small values
+        epsilon = self.config["epsilon"]
+        batch_size = self.config["batch_size"]
+
+        usage = epsilon + (1 - epsilon) * usage  # Avoid very small values
 
         # Sort `usage` and get keep its original indices in `phi`.
         sorted_usage, phi = self.usage.sort()
 
         # We will add this `one` before the `sorted_usage`.
-        one = torch.ones(BATCH_SIZE, 1)
+        one = torch.ones(batch_size, 1)
         padded_sorted_usage = torch.cat([one, sorted_usage], dim=1)
         # Now we can take the "exclusive" cumprod of the `sorted_usage` by taking
         # the cumprod of `padded_sorted_usage` and dropping the last column.
