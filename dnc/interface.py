@@ -3,7 +3,7 @@ from typing import Dict
 import torch
 from torch import Tensor, nn
 
-from .base import BaseInterface
+from dnc.base import BaseInterface
 
 
 class DefaultInterface(BaseInterface):
@@ -52,3 +52,6 @@ if __name__ == "__main__":
     print("\nDefaultInterface Test Results:")
     print(f"State dictionary shape: {state_dict['hidden_state'].shape}")
     print(f"Interface vectors: {interface_vectors}")
+
+    # Summary
+    print(interface.summary())
