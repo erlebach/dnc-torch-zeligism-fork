@@ -1,7 +1,6 @@
 from typing import Any, Dict
 
 import torch
-from jaxtyping import Float
 from torch import Tensor, nn
 
 from dnc.base import BaseController

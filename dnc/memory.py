@@ -1,10 +1,9 @@
 from typing import Dict
 
 import torch
-from torch import Tensor, nn
+from torch import Tensor
 
 from dnc.base import BaseMemory
-from dnc.interface import DefaultInterface
 
 
 class DefaultMemory(BaseMemory):
