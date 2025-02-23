@@ -8,10 +8,11 @@ from torch import Tensor
 
 from memory import Memory
 from training_configs import config, controller_config, memory_config
+from base_controller import BaseController
 
 
 @beartype
-class DNC(nn.Module):
+class DNC(BaseController):
     def __init__(
         self,
         input_size: int,
