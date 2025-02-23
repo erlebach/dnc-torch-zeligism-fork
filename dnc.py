@@ -88,27 +88,24 @@ class DNC(nn.Module):
         """Print helpful information about the DNC for debugging."""
         self.memory.debug()
 
-    def forward(self, inputs: Tensor) -> Tensor:
-        """Make one forward pass one the inputs.
+    def forward(
+        self, inputs: Float[Tensor, "seq_len batch input_size"]
+    ) -> Float[Tensor, "seq_len batch output_size"]:
+        """Make one forward pass on the inputs.
 
-        `inputs` should have dimension:
-            (sequence_size, batch_size, input_size)
-        `read_words` should have dimension:
-            (batch_size, num_reads * word_size)
+        Args:
+            inputs: Input tensor of shape (sequence_size, batch_size, input_size)
+            read_words: Read words tensor of shape (batch_size, num_reads * word_size)
 
-        Return:
-            (sequence_size, batch_size, output_size)
+        Returns:
+            Output tensor of shape (sequence_size, batch_size, output_size)
 
         """
         self.detach_state()
 
         outputs = []
-        print(f"forward, {inputs.shape=}")  # (15,8,8)
-        # . inputs.shape: (15, 8, 8)
         for i in range(inputs.size()[0]):
-            # We go through the inputs in the sequence one by one.
-
-            # . X_t = input ++ read_vectors/read_words
+            # Concatenate input with read words
             controller_input = torch.cat(
                 [
                     rearrange(inputs[i], "b ... -> b (...)"),
@@ -116,38 +113,33 @@ class DNC(nn.Module):
                 ],
                 dim=1,
             )
+
             # Add sequence dimension for controller input
             controller_input = rearrange(controller_input, "b f -> 1 b f")
+
             # Run one step of controller
             controller_output, self.controller_state = self.controller(
                 controller_input, self.controller_state
             )
+
             # Remove sequence dimension from controller output
             controller_output = rearrange(controller_output, "1 b f -> b f")
 
-            """ Compute all the interface tensors by passing
-            the controller's output to all the layers, and
-            then passing the result as an input to memory. """
+            # Compute interface and update memory
             interface = self.interface_layer(controller_output)
             self.read_words = self.memory.update(interface)
 
-            # pre_output.shape = (batch, controller_hidden_size + num_reads * word_size)
+            # Generate output
             pre_output = torch.cat(
                 [
-                    controller_output,  # (batch, controller_hidden_size)
+                    controller_output,
                     rearrange(self.read_words, "b ... -> b (...)"),
                 ],
                 dim=1,
             )
-            # output.shape = (batch, output_size)
             output = self.output_layer(pre_output)
-            print(f"output.shape={output.shape}")  # (8, 5) = (b, 5)
-
             outputs.append(output)
-            # print(f"{len(outputs)=}, {outputs[0].shape=}, {outputs[-1].shape=}")
 
-        # len(outputs) = 15, each element of size (8, 5)
-        print(f"{len(outputs)=}, {outputs[0].shape=}, {outputs[-1].shape=}, {inputs.shape=}")
         return torch.stack(outputs, dim=0)
 
 
@@ -267,3 +259,34 @@ class LinearView(nn.Module):
         # - *self.output_view unpacks the list of desired dimensions (e.g., [4, 8] becomes 4, 8)
         # This results in a tensor with shape (batch_size, *output_view)
         return out1
+
+
+if __name__ == "__main__":
+    # Import configurations
+    from training_configs import config, controller_config, memory_config
+
+    # Test parameters
+    seq_len = 10
+    input_size = 8
+    output_size = 5
+
+    # Initialize DNC with configurations
+    dnc = DNC(
+        input_size=input_size,
+        output_size=output_size,
+        controller_config=controller_config,
+        memory_config=memory_config,
+        config=config,
+    )
+
+    # Create random input tensor with shape (seq_len, batch_size, input_size)
+    x = torch.randn(seq_len, config["batch_size"], input_size)
+
+    # Forward pass
+    y = dnc(x)
+
+    # Print results
+    print("\nDNC Test Results:")
+    print(f"Input shape: {x.shape}")
+    print(f"Output shape: {y.shape}")
+    print(f"First output sample:\n{y[0]}")
