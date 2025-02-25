@@ -26,7 +26,7 @@ build-backend = "hatchling.build"
 
 
 [tool.hatch.build.targets.sdist]
-include = ["dnc"]
+include = ["dnc", "dnc_architecture_graves_2016"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["dnc"]
+packages = ["dnc", "dnc_architecture_graves_2016"]
