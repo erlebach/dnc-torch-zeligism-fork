@@ -9,7 +9,7 @@ from dnc.base import BaseMemory
 
 @beartype
 class DefaultMemory(BaseMemory):
-    def __init__(self, memory_size: int, word_size: int, hidden_size: int):
+    def __init__(self, memory_size: int, word_size: int, **kwargs):
         """Initialize DefaultMemory.
 
         Args:
@@ -48,19 +48,17 @@ class DefaultMemory(BaseMemory):
 
 
 if __name__ == "__main__":
-    # Test parameters
-    memory_size = 100
-    word_size = 16
-    hidden_size = 256
-
-    # Initialize memory
-    memory = DefaultMemory(memory_size=memory_size, word_size=word_size, hidden_size=hidden_size)
+    # Test parameters, initialize memory
+    # Using a dictionary as arguments makes it easier to maintain multiple
+    # configuration files.
+    mem_config = {"memory_size":100, "word_size":16, "hidden_size":256}
+    memory = DefaultMemory(**mem_config)
 
     # Print memory architecture summary
     print(memory.summary())
 
     # Create test state dictionary
-    state_dict = {"write_vector": torch.randn(memory_size, word_size)}
+    state_dict = {"write_vector": torch.randn(mem_config["memory_size"], mem_config["word_size"])}
 
     # Forward pass through memory
     updated_memory = memory(state_dict)
