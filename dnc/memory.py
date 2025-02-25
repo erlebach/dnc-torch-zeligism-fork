@@ -3,9 +3,11 @@ from typing import Dict
 import torch
 from torch import Tensor
 
+from beartype import beartype
 from dnc.base import BaseMemory
 
 
+@beartype
 class DefaultMemory(BaseMemory):
     def __init__(self, memory_size: int, word_size: int, hidden_size: int):
         """Initialize DefaultMemory.

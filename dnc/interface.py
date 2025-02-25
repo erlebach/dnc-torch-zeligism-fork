@@ -2,10 +2,12 @@ from typing import Dict
 
 import torch
 from torch import Tensor, nn
+from beartype import beartype
 
 from dnc.base import BaseInterface
 
 
+@beartype
 class DefaultInterface(BaseInterface):
     def __init__(self, hidden_size: int, interface_size: int):
         super().__init__()

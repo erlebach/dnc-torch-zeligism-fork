@@ -2,10 +2,12 @@ from abc import abstractmethod
 from typing import Any, Dict
 
 from torch import Tensor
+from beartype import beartype
 
 from dnc.utils import validate_method_signatures
 
 
+@beartype
 class StateMixin:
     """Mixin for state management utilities."""
 
@@ -30,6 +32,7 @@ class StateMixin:
         self.init_state()
 
 
+@beartype
 class ValidateMixin:
     """for validating subclass method signatures."""
 

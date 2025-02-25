@@ -2,10 +2,12 @@ from typing import Any, Dict
 
 import torch
 from torch import Tensor, nn
+from beartype import beartype
 
 from dnc.base import BaseController
 
 
+@beartype
 class LSTMController(BaseController):
     def __init__(self, input_size: int, hidden_size: int, **kwargs):
         super().__init__(**kwargs)
