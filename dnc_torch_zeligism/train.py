@@ -1,12 +1,11 @@
-
 import time
 
 import torch
 import torch.nn.functional as F
 
-from training_configs import *
 from dnc import DNC
 from repeat_copy import RepeatCopy
+from training_configs import *
 
 # Define controller and memory configurations
 controller_config = {
@@ -20,10 +19,10 @@ memory_config = {
     "num_reads": NUM_READS,
 }
 
+
 def train(dnc, dataset):
     # Initialize optimizer and loss function
-    optimizer = torch.optim.SGD(dnc.parameters(),
-        lr=LEARNING_RATE, momentum=MOMENTUM)
+    optimizer = torch.optim.SGD(dnc.parameters(), lr=LEARNING_RATE, momentum=MOMENTUM)
     # Adam seems to be faster (maybe)
     optimizer = torch.optim.Adam(dnc.parameters())
 
@@ -47,9 +46,10 @@ def train(dnc, dataset):
         # Print report when we reach a checkpoint
         if (i + 1) % CHECKPOINT == 0:
             dataset.report(data, pred_outputs.data)
-            #dnc.debug()
-            print("[%d/%d] Loss = %.3f" % (i+1, NUM_EXAMPLES, loss.item()), flush=True )
+            # dnc.debug()
+            print("[%d/%d] Loss = %.3f" % (i + 1, NUM_EXAMPLES, loss.item()), flush=True)
             print("Time elapsed = %ds" % (time.time() - start_time))
+
 
 def main():
     # Set random seed if given
@@ -59,11 +59,10 @@ def main():
     dataset = RepeatCopy()  # default parameters
 
     # Initialize DNC
-    dnc = DNC(dataset.input_size, dataset.output_size,
-        controller_config, memory_config)
+    dnc = DNC(dataset.input_size, dataset.output_size, controller_config, memory_config)
 
     train(dnc, dataset)
 
-if __name__ == '__main__':
-    main()
 
+if __name__ == "__main__":
+    main()

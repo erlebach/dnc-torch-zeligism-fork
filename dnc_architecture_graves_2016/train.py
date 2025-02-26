@@ -1,31 +1,32 @@
-
 import time
 
 import torch
 import torch.nn.functional as F
 
-from training_configs import *
-from dnc import DNC
-from repeat_copy import RepeatCopy
+# Fix imports to use the correct paths
+from dnc_architecture_graves_2016.dnc_module import DNC
+from dnc_architecture_graves_2016.memory_config import memory_config
+from dnc_architecture_graves_2016.repeat_copy import RepeatCopy
+from dnc_architecture_graves_2016.training_config import training_config
+from dnc_architecture_graves_2016.training_configs import *  # Import constants for backward compatibility
 
 # Define controller and memory configurations
 controller_config = {
     "hidden_size": HIDDEN_SIZE,
     "num_layers": NUM_LAYERS,
 }
-memory_config = {
-    "memory_size": MEMORY_SIZE,
-    "word_size": WORD_SIZE,
-    "num_writes": NUM_WRITES,
-    "num_reads": NUM_READS,
-}
+
+# Combine memory_config with batch_size
+memory_config_combined = memory_config.copy()
+memory_config_combined["batch_size"] = BATCH_SIZE
+
 
 def train(dnc, dataset):
-    # Initialize optimizer and loss function
-    optimizer = torch.optim.SGD(dnc.parameters(),
-        lr=LEARNING_RATE, momentum=MOMENTUM)
-    # Adam seems to be faster (maybe)
-    optimizer = torch.optim.Adam(dnc.parameters())
+    # Initialize optimizer - use only one optimizer, not two
+    optimizer = torch.optim.Adam(dnc.parameters(), lr=LEARNING_RATE)
+
+    # Track losses for plotting
+    losses = []
 
     # Define input and its true output
     start_time = time.time()
@@ -44,12 +45,21 @@ def train(dnc, dataset):
         # Update parameters using the optimizer
         optimizer.step()
 
+        # Save loss for plotting
+        losses.append(loss.item())
+
         # Print report when we reach a checkpoint
         if (i + 1) % CHECKPOINT == 0:
             dataset.report(data, pred_outputs.data)
-            #dnc.debug()
-            print("[%d/%d] Loss = %.3f" % (i+1, NUM_EXAMPLES, loss.item()) )
+            # dnc.debug()
+            print("[%d/%d] Loss = %.3f" % (i + 1, NUM_EXAMPLES, loss.item()), flush=True)
             print("Time elapsed = %ds" % (time.time() - start_time))
+
+    # Save losses to file for plotting
+    with open("o.txt", "w") as f:
+        for loss_val in losses:
+            f.write(f"{loss_val}\n")
+
 
 def main():
     # Set random seed if given
@@ -58,12 +68,16 @@ def main():
     # Choose dataset and initialize size of data's input and output
     dataset = RepeatCopy()  # default parameters
 
-    # Initialize DNC
-    dnc = DNC(dataset.input_size, dataset.output_size,
-        controller_config, memory_config)
+    # Initialize DNC with our new implementation
+    dnc = DNC(
+        input_size=dataset.input_size,
+        output_size=dataset.output_size,
+        controller_config=controller_config,
+        memory_config=memory_config_combined,
+    )
 
     train(dnc, dataset)
 
-if __name__ == '__main__':
-    main()
 
+if __name__ == "__main__":
+    main()

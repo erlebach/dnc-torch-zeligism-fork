@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-from training_configs import *
+from dnc_architecture_graves_2016.training_configs import *
 
 class RepeatCopy:
     """This is my own version of repeat copy."""

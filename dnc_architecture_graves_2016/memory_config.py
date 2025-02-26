@@ -19,8 +19,8 @@
 
 # Memory Configuration
 memory_config = {
-    "memory_size": 128,
-    "word_size": 20,
+    "memory_size": 32,
+    "word_size": 8,
     "num_writes": 1,
     "num_reads": 4,
 }

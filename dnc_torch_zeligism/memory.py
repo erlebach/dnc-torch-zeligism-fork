@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from training_configs import *
+from dnc_torch_zeligism.training_configs import *
 
 """Memory."""
 
