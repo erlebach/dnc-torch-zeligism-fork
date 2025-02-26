@@ -1,3 +1,5 @@
+from typing import Any, Dict, Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -5,14 +7,13 @@ from beartype import beartype
 from torch import Tensor
 
 from dnc.base import BaseMemory
+from dnc_architecture_graves_2016.interface import Interface
 from dnc_architecture_graves_2016.memory_config import memory_config
 from dnc_architecture_graves_2016.training_config import training_config
 
 # from training_configs import *
 
-"""
-Memory.
-"""
+"""Memory."""
 
 
 @beartype
@@ -24,7 +25,7 @@ class Memory(BaseMemory):
         num_writes: int = 1,
         num_reads: int = 1,
         batch_size: int | None = None,
-        epsilon: float = 1.e-6,
+        epsilon: float = 1.0e-6,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -35,26 +36,61 @@ class Memory(BaseMemory):
         self.num_reads = num_reads
         self.batch_size = batch_size
         self.epsilon = epsilon
+
+        # Define required shapes for interface validation
+        self.required_shapes = {
+            "read_keys": (batch_size, num_reads, word_size),
+            "read_strengths": (batch_size, num_reads),
+            "write_keys": (batch_size, num_writes, word_size),
+            "write_strengths": (batch_size, num_writes),
+            "erase_vectors": (batch_size, num_writes, word_size),
+            "write_vectors": (batch_size, num_writes, word_size),
+            "free_gate": (batch_size, num_reads),
+            "allocation_gate": (batch_size, num_writes),
+            "write_gate": (batch_size, num_writes),
+            "read_modes": (batch_size, num_reads, 2 * num_writes + 1),
+        }
+
         # Initialize state of memory
-        self.init_state()
+        self.init_state(kwargs)
 
-    def init_state(self):
-        self.memory_data = torch.zeros(self.batch_size, self.memory_size, self.word_size)
-        self.read_weights = torch.zeros(self.batch_size, self.num_reads, self.memory_size)
-        self.write_weights = torch.zeros(self.batch_size, self.num_writes, self.memory_size)
-        self.precedence_weights = torch.zeros(self.batch_size, self.num_writes, self.memory_size)
-        self.link = torch.zeros(
-            self.batch_size, self.num_writes, self.memory_size, self.memory_size
-        )
-        self.usage = torch.zeros(self.batch_size, self.memory_size)
+    def init_state(self, config: Dict[str, Any] = None) -> None:
+        """Initialize the state of the memory.
 
-    def detach_state(self):
-        self.memory_data.detach_()
-        self.read_weights.detach_()
-        self.write_weights.detach_()
-        self.precedence_weights.detach_()
-        self.link.detach_()
-        self.usage.detach_()
+        Args:
+            config: Optional configuration dictionary
+        """
+        # Initialize memory state tensors
+        self.state = {
+            "memory": torch.zeros(self.batch_size, self.memory_size, self.word_size),
+            "read_weights": torch.zeros(self.batch_size, self.num_reads, self.memory_size),
+            "write_weights": torch.zeros(self.batch_size, self.num_writes, self.memory_size),
+            "precedence_weights": torch.zeros(self.batch_size, self.num_writes, self.memory_size),
+            "link": torch.zeros(
+                self.batch_size, self.num_writes, self.memory_size, self.memory_size
+            ),
+            "usage": torch.zeros(self.batch_size, self.memory_size),
+        }
+
+        # For backward compatibility, also set these as attributes
+        self.memory_data = self.state["memory"]
+        self.read_weights = self.state["read_weights"]
+        self.write_weights = self.state["write_weights"]
+        self.precedence_weights = self.state["precedence_weights"]
+        self.link = self.state["link"]
+        self.usage = self.state["usage"]
+
+    def detach_state(self) -> None:
+        """Detach the state from the computation graph."""
+        super().detach_state()
+
+        # Also update the attribute references
+        self.memory_data = self.state["memory"]
+        self.read_weights = self.state["read_weights"]
+        self.write_weights = self.state["write_weights"]
+        self.precedence_weights = self.state["precedence_weights"]
+        self.link = self.state["link"]
+        self.usage = self.state["usage"]
 
     def debug(self):
         """
@@ -93,7 +129,15 @@ class Memory(BaseMemory):
 
         return content_weights
 
-    def forward(self, state_dict: dict[str, Tensor]) -> Tensor:
+    def forward(self, state_dict: Dict[str, Tensor]) -> Tensor:
+        """Forward pass through the memory module.
+
+        Args:
+            state_dict: Dictionary of interface vectors
+
+        Returns:
+            Tensor of read words
+        """
         return self.update(state_dict)
 
     def update(self, interface):
@@ -179,10 +223,18 @@ class Memory(BaseMemory):
             link_t, interface["read_modes"], read_content_weights
         )
 
-        # Update state of memory and return read words
+        # Update state of memory
+        self.state["memory"] = memory_data_t
+        self.state["usage"] = usage_t
+        self.state["write_weights"] = write_weights_t
+        self.state["link"] = link_t
+        self.state["precedence_weights"] = precedence_weights_t
+        self.state["read_weights"] = read_weights_t
+
+        # Update attribute references for backward compatibility
+        self.memory_data = memory_data_t
         self.usage = usage_t
         self.write_weights = write_weights_t
-        self.memory_data = memory_data_t
         self.link = link_t
         self.precedence_weights = precedence_weights_t
         self.read_weights = read_weights_t
@@ -426,6 +478,76 @@ class Memory(BaseMemory):
         # Return the directional weights with the flip fix as suggested.
         return dir_weights.transpose(1, 2)
 
+    def summary(self) -> str:
+        """Return a string summary of the memory's architecture.
+
+        Returns:
+            A string containing memory configuration and requirements.
+        """
+        # Calculate total elements in state tensors
+        state_elements = sum(tensor.numel() for tensor in self.state.values())
+
+        memory_shape = self.state["memory"].shape if "memory" in self.state else "Not initialized"
+
+        return (
+            f"\nMemory Summary:\n"
+            f"  Memory shape: {memory_shape}\n"
+            f"  Memory size: {self.memory_size}\n"
+            f"  Word size: {self.word_size}\n"
+            f"  Number of read heads: {self.num_reads}\n"
+            f"  Number of write heads: {self.num_writes}\n"
+            f"  Batch size: {self.batch_size}\n"
+            f"  Required interface outputs:\n"
+            f"    " + "\n    ".join(f"{k}: {v}" for k, v in self.required_shapes.items()) + "\n"
+            f"  Interface attached: {self.interface is not None}\n"
+            f"  Learnable parameters: {sum(p.numel() for p in self.parameters())} (Memory has no learnable parameters)\n"
+            f"  State elements: {state_elements}\n"
+        )
+
+
+def test_memory_with_interface():
+    """Test the Memory class with the Interface class."""
+    import torch
+
+    from dnc_architecture_graves_2016.interface import Interface
+    from dnc_architecture_graves_2016.memory_config import memory_config
+    from dnc_architecture_graves_2016.training_config import training_config
+
+    # Combine configurations
+    config = {**memory_config, **training_config}
+
+    # Create memory module
+    memory = Memory(**config)
+
+    # Create interface module
+    # Assuming controller output size is 128
+    controller_output_size = 128
+    interface = Interface(
+        input_size=controller_output_size,
+        memory_size=config["memory_size"],
+        word_size=config["word_size"],
+        num_writes=config["num_writes"],
+        num_reads=config["num_reads"],
+        batch_size=config["batch_size"],
+    )
+
+    # Set interface for memory (validates compatibility)
+    memory.set_interface(interface)
+
+    # Create dummy controller output
+    controller_output = torch.randn(config["batch_size"], controller_output_size)
+
+    # Process through interface
+    interface_vectors = interface({"output": controller_output})
+
+    # Process through memory
+    read_words = memory(interface_vectors)
+
+    print(f"Read words shape: {read_words.shape}")
+    # Should be (batch_size, num_reads, word_size)
+
+    return read_words
+
 
 if __name__ == "__main__":
     config = {**memory_config, **training_config}
@@ -435,11 +557,5 @@ if __name__ == "__main__":
     # Print memory architecture summary
     print(memory.summary())
 
-    # Create test state dictionary
-    state_dict = {
-        "write_vector": torch.randn(memory_config["memory_size"], memory_config["word_size"])
-    }
-
-    # Forward pass through memory
-    updated_memory = memory(state_dict)
-    print(f"\nUpdated memory shape: {updated_memory.shape}")
+    # Test with interface
+    test_memory_with_interface()
