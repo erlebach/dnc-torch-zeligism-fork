@@ -194,6 +194,9 @@ class Memory(BaseMemory):
         9) Return the words read from memory by the read heads.
         """
 
+        # Store the interface for debugging
+        self.last_interface = interface
+
         # Calculate the next usage
         usage_t = self.update_usage(interface["free_gate"])
 

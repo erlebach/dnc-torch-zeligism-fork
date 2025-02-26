@@ -6,11 +6,11 @@ from dnc_torch_zeligism.training_configs import *
 
 """Memory."""
 
+
 class Memory:
     """Base class implementation."""
-    def __init__(self, memory_size=128,
-        word_size=20, num_writes=1, num_reads=1):
 
+    def __init__(self, memory_size=128, word_size=20, num_writes=1, num_reads=1):
         # Initialize memory parameters sizes
         self.memory_size = memory_size
         self.word_size = word_size
@@ -18,7 +18,6 @@ class Memory:
         self.num_reads = num_reads
         # Initialize state of memory
         self.init_state()
-
 
     def init_state(self):
         self.memory_data = torch.zeros(BATCH_SIZE, self.memory_size, self.word_size)
@@ -28,7 +27,6 @@ class Memory:
         self.link = torch.zeros(BATCH_SIZE, self.num_writes, self.memory_size, self.memory_size)
         self.usage = torch.zeros(BATCH_SIZE, self.memory_size)
 
-
     def detach_state(self):
         self.memory_data.detach_()
         self.read_weights.detach_()
@@ -37,7 +35,6 @@ class Memory:
         self.link.detach_()
         self.usage.detach_()
 
-
     def debug(self):
         """
         Debug memory.
@@ -45,7 +42,6 @@ class Memory:
         print("-----------------------------------")
         print(self.memory_data[0, ...])
         print()
-
 
     def content_based_address(self, memory_data, keys, strengths):
         """
@@ -65,8 +61,8 @@ class Memory:
         # For each head, find cosine similarity of the word for that head
         # with each word in memory -> _, num_heads, memory_size, word*word.
         cosine_similarity = F.cosine_similarity(
-            keys.unsqueeze(dim=2), memory_data.unsqueeze(dim=1), 
-            dim=3, eps=EPSILON)
+            keys.unsqueeze(dim=2), memory_data.unsqueeze(dim=1), dim=3, eps=EPSILON
+        )
 
         # Transform strengths using the oneplus(x) function.
         strengths = 1 + F.softplus(strengths).unsqueeze(dim=2)
@@ -75,7 +71,6 @@ class Memory:
         content_weights = F.softmax(cosine_similarity * strengths, dim=2)
 
         return content_weights
-
 
     def update(self, interface):
         """
@@ -131,30 +126,37 @@ class Memory:
         9) Return the words read from memory by the read heads.
         """
 
+        # Store the interface for debugging
+        self.last_interface = interface
+
         # Calculate the next usage
         usage_t = self.update_usage(interface["free_gate"])
 
         # Calculate the content-based write addresses
-        write_content_weights = self.content_based_address(self.memory_data,
-            interface["write_keys"], interface["write_strengths"])
+        write_content_weights = self.content_based_address(
+            self.memory_data, interface["write_keys"], interface["write_strengths"]
+        )
         # Find the next write weightings using the updated usage
-        write_weights_t = self.update_write_weights(usage_t,
-            interface["write_gate"], interface["allocation_gate"],
-            write_content_weights)
+        write_weights_t = self.update_write_weights(
+            usage_t, interface["write_gate"], interface["allocation_gate"], write_content_weights
+        )
 
         # Write/erase to memory using the write weights we just got
-        memory_data_t = self.update_memory_data(write_weights_t,
-            interface["erase_vectors"], interface["write_vectors"])
+        memory_data_t = self.update_memory_data(
+            write_weights_t, interface["erase_vectors"], interface["write_vectors"]
+        )
 
         # Update the link matrix and the precedence weightings
         link_t, precedence_weights_t = self.update_linkage(write_weights_t)
 
         # Calculate the content-based read addresses (note updated memory)
-        read_content_weights = self.content_based_address(memory_data_t,
-            interface["read_keys"], interface["read_strengths"])
+        read_content_weights = self.content_based_address(
+            memory_data_t, interface["read_keys"], interface["read_strengths"]
+        )
         # Find the next read weights using linkage matrix
-        read_weights_t = self.update_read_weights(link_t,
-            interface["read_modes"], read_content_weights)
+        read_weights_t = self.update_read_weights(
+            link_t, interface["read_modes"], read_content_weights
+        )
 
         # Update state of memory and return read words
         self.usage = usage_t
@@ -166,7 +168,6 @@ class Memory:
 
         # Return the new read words for each read head from new memory data
         return read_weights_t @ memory_data_t
-
 
     def update_usage(self, free_gate):
         """
@@ -200,9 +201,7 @@ class Memory:
 
         return usage
 
-
-    def update_write_weights(self,
-        usage, write_gate, allocation_gate, write_content_weights):
+    def update_write_weights(self, usage, write_gate, allocation_gate, write_content_weights):
         """
         Calculates and returns the next/current `write_weights`.
         It's pretty similar to the one in DeepMind's code.
@@ -214,18 +213,20 @@ class Memory:
 
         # Find the allocation weights
         write_allocation_weights = self.write_allocation_weights(
-            write_gate * allocation_gate, usage)
+            write_gate * allocation_gate, usage
+        )
 
         # Add a dimension to gates for scalar multiplication along memory cells
         write_gate = write_gate.unsqueeze(dim=-1)
-        allocation_gate =  allocation_gate.unsqueeze(dim=-1)
+        allocation_gate = allocation_gate.unsqueeze(dim=-1)
 
         # Calculate `write_weights` using allocation and content-based weights
-        write_weights = write_gate * (allocation_gate * write_allocation_weights +
-                            (1 - allocation_gate) * write_content_weights)
+        write_weights = write_gate * (
+            allocation_gate * write_allocation_weights
+            + (1 - allocation_gate) * write_content_weights
+        )
 
         return write_weights
-
 
     def write_allocation_weights(self, write_alloc_gates, usage):
         """
@@ -256,7 +257,6 @@ class Memory:
         # Stack allocation weights into one tensor and return
         return torch.stack(write_allocation_weights, dim=1)
 
-
     def allocation(self, usage):
         """
         Sort of a subroutine that runs in `update_write_weights(...)`.
@@ -283,7 +283,6 @@ class Memory:
 
         return allocation_weights
 
-
     def update_memory_data(self, weights, erases, writes):
         """
         Update the data of the memory. Returns the updated memory.
@@ -307,7 +306,6 @@ class Memory:
 
         # Return the updated memory
         return self.memory_data * erase_factor + write_words
-
 
     def update_linkage(self, write_weights):
         """
@@ -338,17 +336,17 @@ class Memory:
 
         # Calculate precedence weightings
         precedence_weights = write_weights + self.precedence_weights * (
-            1 - write_weights.sum(dim=2, keepdim=True))
+            1 - write_weights.sum(dim=2, keepdim=True)
+        )
 
         return link, precedence_weights
-
 
     def update_read_weights(self, link, read_modes, content_weights):
         """
         Update read weights.
         `content_weights` (BATCH_SIZE, num_reads, memory_size)
         """
-        
+
         # Calculate the directional read weights
         # both dim: (BATCH_SIZE, num_reads, num_writes, memory_size)
         backward_weights = self.directional_read_weights(link, forward=False)
@@ -356,15 +354,15 @@ class Memory:
 
         # These are the (chosen) ranges of the three modes by definition
         backward_mode_range = range(self.num_writes)
-        forward_mode_range  = range(self.num_writes, 2 * self.num_writes)
-        content_mode_range  = range(2 * self.num_writes, 2 * self.num_writes + 1)
+        forward_mode_range = range(self.num_writes, 2 * self.num_writes)
+        content_mode_range = range(2 * self.num_writes, 2 * self.num_writes + 1)
 
         # Extract the tensors for each mode (note their dimensions)
         # forward/backward dim: (BATCH_SIZE, num_reads, num_writes, 1)
         # content dim: (BATCH_SIZE, num_reads, 1)
         backward_mode = read_modes[..., backward_mode_range].unsqueeze(dim=-1)
-        forward_mode  = read_modes[..., forward_mode_range].unsqueeze(dim=-1)
-        content_mode  = read_modes[..., content_mode_range]
+        forward_mode = read_modes[..., forward_mode_range].unsqueeze(dim=-1)
+        content_mode = read_modes[..., content_mode_range]
 
         # Get the final read weightings depending on the focus of the current
         # mode using the modes weights to interpolate among the three read weights.
@@ -374,7 +372,6 @@ class Memory:
         content_read = content_mode * content_weights
 
         return backward_read + forward_read + content_read
-
 
     def directional_read_weights(self, link, forward):
         """
@@ -398,7 +395,8 @@ class Memory:
         """
 
         # Transpose link in case it is forward weightings (note opposite case)
-        if forward: link = link.transpose(2, 3)
+        if forward:
+            link = link.transpose(2, 3)
 
         # Add a dim for write heads and multiply with the link matrix.
         # Notice that dim 1 will be expanded to `num_writes` automatically.
@@ -406,11 +404,3 @@ class Memory:
 
         # Return the directional weights with the flip fix as suggested.
         return dir_weights.transpose(1, 2)
-
-
-
-
-
-
-
-
