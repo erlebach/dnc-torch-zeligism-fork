@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Tuple
 
-from torch import Tensor, nn
 from beartype import beartype
+from torch import Tensor, nn
 
 from dnc.mixins import StateMixin
 
@@ -51,11 +51,15 @@ class BaseController(nn.Module, StateMixin):
             f"  Parameters: {sum(p.numel() for p in self.parameters())}\n"
         )
 
+
 @beartype
 class BaseInterface(nn.Module, StateMixin):
     """Base class for interface modules with state management.
 
-    # StateMixin derives from ABC, so ABC cannot be included explictly.
+    The following routine must be implemented from StateMixin:
+       - init_state
+
+    StateMixin derives from ABC, so ABC cannot be included explictly.
     """
 
     def __init__(self):
@@ -96,6 +100,7 @@ class BaseInterface(nn.Module, StateMixin):
             f"    " + "\n    ".join(f"{k}: {v}" for k, v in self.output_shapes.items()) + "\n"
             f"  Parameters: {sum(p.numel() for p in self.parameters())}\n"
         )
+
 
 @beartype
 class BaseMemory(nn.Module, ABC, StateMixin):

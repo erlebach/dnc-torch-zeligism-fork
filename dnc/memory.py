@@ -1,9 +1,9 @@
 from typing import Dict
 
 import torch
+from beartype import beartype
 from torch import Tensor
 
-from beartype import beartype
 from dnc.base import BaseMemory
 
 
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     # Test parameters, initialize memory
     # Using a dictionary as arguments makes it easier to maintain multiple
     # configuration files.
-    mem_config = {"memory_size":100, "word_size":16, "hidden_size":256}
+    mem_config = {"memory_size": 100, "word_size": 16, "hidden_size": 256}
     memory = DefaultMemory(**mem_config)
 
     # Print memory architecture summary
