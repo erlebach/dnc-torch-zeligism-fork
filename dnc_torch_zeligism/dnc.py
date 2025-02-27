@@ -1,11 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from beartype import beartype
 
-from memory import Memory
+from dnc_torch_zeligism.memory import Memory
 from dnc_torch_zeligism.training_configs import *
 
 
+@beartype
 class DNC(nn.Module):
     def __init__(
         self, input_size, output_size, controller_config, memory_config, Controller=nn.LSTM
@@ -19,6 +21,7 @@ class DNC(nn.Module):
         self.input_size = input_size + self.memory.num_reads * self.memory.word_size
         # Now initialize controller (LSTM in this case)
         self.controller = Controller(self.input_size, **controller_config)
+        self.controller_config = controller_config
 
         # Initialize state of DNC
         self.init_state()
@@ -47,6 +50,7 @@ class DNC(nn.Module):
 
         # Initialize controller state
         num_layers = getattr(self.controller, "num_layers", 1)
+        print(f"{self.controller_config=}") # not defined
         hidden_size = self.controller_config.get("hidden_size", 64)
 
         self.controller_state = (
@@ -116,6 +120,7 @@ class DNC(nn.Module):
         return torch.stack(outputs, dim=0)
 
 
+@beartype
 class DNC_InterfaceLayer(nn.Module):
     """
     The interface layer of the DNC.
@@ -160,6 +165,7 @@ class DNC_InterfaceLayer(nn.Module):
         }
 
 
+@beartype
 class LinearView(nn.Module):
     """
     Similar to linear, except that it outputs a tensor with size `dim`.

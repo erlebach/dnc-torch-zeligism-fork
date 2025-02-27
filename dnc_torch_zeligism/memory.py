@@ -43,6 +43,12 @@ class Memory:
         print(self.memory_data[0, ...])
         print()
 
+    # DEBUG
+    def print_memory_data(self): # W: Missing function or method docstring
+      print("\n=== print_memory_data in dnc_torch_zeligism/ ===")
+      print("Original memory data mean:", self.memory_data.mean().item())
+      print(f"{self.memory_data[0][0:2]=}")
+      
     def content_based_address(self, memory_data, keys, strengths):
         """
         Content-based addressing.
@@ -300,9 +306,12 @@ class Memory:
         weighted_erase = weights.unsqueeze(dim=-1) * erases.unsqueeze(dim=-2)
         # Take the aggregate erase factor through all write heads.
         erase_factor = torch.prod(1 - weighted_erase, dim=1)
+        #print(f"{erase_factor=}")
 
         # Calculate the weighted words to add/write to memory.
         write_words = weights.transpose(1, 2) @ writes
+        #print(f"{write_words=}")
+        #print(f"{erase_factor=}")
 
         # Return the updated memory
         return self.memory_data * erase_factor + write_words
