@@ -13,18 +13,12 @@ from dnc_architecture_graves_2016.model_utils import (
 )
 from dnc_architecture_graves_2016.repeat_copy import RepeatCopy
 from dnc_architecture_graves_2016.training_config import training_config
-from dnc_architecture_graves_2016.training_configs import *  # Import constants for backward compatibility
+from dnc_architecture_graves_2016.controller_config import controller_config
 from dnc_torch_zeligism.dnc import DNC as OrigDNC
-
-# Define controller and memory configurations
-controller_config = {
-    "hidden_size": HIDDEN_SIZE,
-    "num_layers": NUM_LAYERS,
-}
 
 # Combine memory_config with batch_size
 memory_config_combined = memory_config.copy()
-memory_config_combined["batch_size"] = BATCH_SIZE
+memory_config_combined["batch_size"] = training_config['batch_size']
 
 
 def train(dnc, dataset, debug_mode=False):  # Set default to False to avoid immediate errors
@@ -43,8 +37,8 @@ def train(dnc, dataset, debug_mode=False):  # Set default to False to avoid imme
 
             # Create configs for original DNC - WITHOUT batch_size
             orig_controller_config = {
-                "hidden_size": HIDDEN_SIZE,
-                "num_layers": NUM_LAYERS,
+                "hidden_size": controller_config['hidden_size'],
+                "num_layers": controller_config['num_layers',
             }
             orig_memory_config = {
                 "memory_size": memory_config["memory_size"],
@@ -145,7 +139,7 @@ def train(dnc, dataset, debug_mode=False):  # Set default to False to avoid imme
 
 def main():
     # Set random seed if given
-    torch.manual_seed(RANDOM_SEED or torch.initial_seed())
+    torch.manual_seed(training_config['random_seed'] or torch.initial_seed())
 
     # Choose dataset and initialize size of data's input and output
     dataset = RepeatCopy()  # default parameters
