@@ -44,11 +44,11 @@ class Memory:
         print()
 
     # DEBUG
-    def print_memory_data(self): # W: Missing function or method docstring
-      print("\n=== print_memory_data in dnc_torch_zeligism/ ===")
-      print("Original memory data mean:", self.memory_data.mean().item())
-      print(f"{self.memory_data[0][0:2]=}")
-      
+    def print_memory_data(self):  # W: Missing function or method docstring
+        print("\n=== print_memory_data in dnc_torch_zeligism/ ===")
+        print("Original memory data mean:", self.memory_data.mean().item())
+        print(f"{self.memory_data[0][0:2]=}")
+
     def content_based_address(self, memory_data, keys, strengths):
         """
         Content-based addressing.
@@ -131,6 +131,8 @@ class Memory:
         8) Update the state of the DNC (note that `self` still has `t-1` state).
         9) Return the words read from memory by the read heads.
         """
+
+        print("========> orig, ENTER update")
 
         # Store the interface for debugging
         self.last_interface = interface
@@ -302,16 +304,27 @@ class Memory:
         and then it takes the product of (1 - result) through all write heads.
         """
 
+        print(f"========> ENTER update_memory_data")
+
+        print(f"==> orig, update_memory_data, {erases.shape=}")
+        print(f"==> orig, update_memory_data, {weights.shape=}")
+        print(f"==> orig, update_memory_data, {writes.shape=}")
+
         # Take the outer product of the weights and erase vectors per write head.
         weighted_erase = weights.unsqueeze(dim=-1) * erases.unsqueeze(dim=-2)
+        print(f"==> orig, update_memory_data, {weighted_erase.shape=}")
+        # print(f"==> orig, update_memory_data, {weighted_erase=}")
         # Take the aggregate erase factor through all write heads.
         erase_factor = torch.prod(1 - weighted_erase, dim=1)
-        #print(f"{erase_factor=}")
+        print(f"==> orig, update_memory_data, {erase_factor.shape=}")
+        # print(f"{erase_factor=}")
 
         # Calculate the weighted words to add/write to memory.
         write_words = weights.transpose(1, 2) @ writes
-        #print(f"{write_words=}")
-        #print(f"{erase_factor=}")
+        print(f"==> orig, update_memory_data, {write_words.shape=}")
+        # print(f"==> orig, update_memory_data, {write_words=}")
+
+        print(f"==> orig, update_memory_data, {self.memory_data.shape=}")
 
         # Return the updated memory
         return self.memory_data * erase_factor + write_words

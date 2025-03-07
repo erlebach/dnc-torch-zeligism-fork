@@ -1,0 +1,131 @@
+├── __pycache__
+├── bak
+├── dnc
+│   └── __pycache__
+├── dnc_architecture_graves_2016
+│   ├── __pycache__
+│   └── bak
+├── dnc_torch_zeligism
+│   └── __pycache__
+└── tests
+
+2025-03-06
+Folder dnc/
+-----------
+python dnc/base.py
+python dnc/controller.py (__main__)
+python dnc/dnc_memory.py (__main__)
+python dnc/interface.py (with if __name == )
+python dnc/memory.py (__main__)
+python dnc/mixins.py
+python dnc/utils.py
+
+Folder: dnc_torch_zeligism/
+---------------------------
+- The five lines below execute with no error
+python dnc_torch_zeligism/dnc.py
+python dnc_torch_zeligism/memory.py
+python dnc_torch_zeligism/repeat_copy.py
+python dnc_torch_zeligism/train.py
+python dnc_torch_zeligism/training_configs.py
+# dnc_torch_zeligism/plot_o_txt.py
+
+Folder: dnc_architecture_graves_2016 
+-------------------------------------
+
+# Use basememory
+# Objective: 
+#   generate same output as from dnc_torch_zegligism/
+
+folder ./:
+----------
+python dnc_adapted.py
+   No output, no error
+
+python memory_adapted.py
+   No output, no error
+
+python interface_adapted.py
+   No output, no error
+
+python test_adapter.py
+  Output, no erro
+
+python test_memory_adapter.py
+    No output, error
+    Traceback (most recent call last):
+      File "/Users/erlebach/src/2024/dnc-torch-zeligism-fork/test_memory_adapted.py", line 25, in <module>
+        verify_memory_initialization()
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+      File "/Users/erlebach/src/2024/dnc-torch-zeligism-fork/test_memory_adapted.py", line 4, in verify_memory_initialization
+        memory = MemoryAdapted()
+                 ^^^^^^^^^^^^^
+    NameError: name 'MemoryAdapted' is not defined
+
+python test_dnc_adaptor.py
+    no error, no output
+
+python test_adaptation.py
+    output, no error
+
+python test_memory.py
+   Traceback (most recent call last):
+   File "/Users/erlebach/src/2024/dnc-torch-zeligism-fork/test_memory_adapted.py", line 25, in <module>
+     verify_memory_initialization()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+   File "/Users/erlebach/src/2024/dnc-torch-zeligism-fork/test_memory_adapted.py", line 4, in verify_memory_initialization
+     memory = MemoryAdapted()
+              ^^^^^^^^^^^^^
+NameError: name 'MemoryAdapted' is not defined
+
+
+python test_forward_pass.py
+    OUTPUT + ERROR
+
+
+
+python test_complete_initialization.py
+    OUTPUT + ERROR
+    File "/Users/erlebach/src/2024/dnc-torch-zeligism-fork/test_complete_initialization.py", line 177, in <module>
+      main()
+      ~~~~^^
+    File "/Users/erlebach/src/2024/dnc-torch-zeligism-fork/test_complete_initialization.py", line 155, in main
+      are_equal, results = compare_models_completely(old_dnc, new_dnc, inputs)
+                           ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/erlebach/src/2024/dnc-torch-zeligism-fork/complete_weight_initialization.py", line 200, in compare_models_completely
+      are_params_equal = torch.allclose(param1, param2, rtol=rtol, atol=atol)
+  RuntimeError: The size of tensor a (40) must match the size of tensor b (64) at non-singleton dimension 1
+
+======================================================================
+    
+-------------------------------------------------------
+
+__init__.py
+a.py
+abstract_example.py
+adapted.py
+base_class.py
+base_controller.py
+check_tests.py
+compare_dncs.py
+complete_weight_initialization.py
+dnc.py
+dnc_adapted.py
+example.py
+interface_adapted.py
+memory_adapted.py
+my_memory.py
+original.py
+plot.py
+plot_o_txt.py
+repeat_copy.py
+stackable_dnc.py
+test_adaptation.py
+test_complete_initialization.py
+test_forward_pass.py
+test_memory_adapted.py
+timing_add_two_tensors_with_without_dict.py
+train.py
+training_configs.py
+weight_initialization.py
+

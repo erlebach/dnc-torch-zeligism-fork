@@ -72,6 +72,22 @@ class Memory(BaseMemory):
             "usage": torch.zeros(self.batch_size, self.memory_size),
         }
 
+        # Initialize memory matrix with specific values
+        if "memory" not in self.state:
+            self.state["memory"] = torch.zeros(self.batch_size, self.memory_size, self.word_size)
+
+        # Set memory to specific initial values (0.01 in this case)
+        self.state["memory"].fill_(0.01)
+
+        # Initialize other memory components
+        self.state["usage"] = torch.zeros(self.batch_size, self.memory_size)
+        self.state["link"] = torch.zeros(self.batch_size, self.memory_size, self.memory_size)
+        self.state["precedence_weights"] = torch.zeros(self.batch_size, self.memory_size)
+
+        # Initialize read/write weights
+        self.state["read_weights"] = torch.zeros(self.batch_size, self.num_reads, self.memory_size)
+        self.state["write_weights"] = torch.zeros(self.batch_size, self.memory_size)
+
         # For backward compatibility, also set these as attributes
         self.memory_data = self.state["memory"]
         self.read_weights = self.state["read_weights"]

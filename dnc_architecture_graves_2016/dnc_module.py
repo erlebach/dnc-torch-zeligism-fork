@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -26,8 +26,8 @@ class DNC(BaseController):
         self,
         input_size: int,
         output_size: int,
-        controller_config: Dict[str, Any] = None,
-        memory_config: Dict[str, Any] = None,
+        controller_config: Optional[Dict[str, Any]] = None,
+        memory_config: Optional[Dict[str, Any]] = None,
         Controller=nn.LSTM,
         **kwargs,
     ) -> None:
