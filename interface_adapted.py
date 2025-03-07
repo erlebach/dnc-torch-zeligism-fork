@@ -12,6 +12,7 @@ from beartype import beartype
 
 from dnc.base import BaseInterface
 
+
 @beartype
 class DNC_InterfaceLayer_Adapted(BaseInterface):
     """
@@ -91,14 +92,14 @@ class DNC_InterfaceLayer_Adapted(BaseInterface):
         return {
             "read_keys": self.read_keys(x),
             "read_strengths": self.read_strengths(x),  # debugging value
-            #"read_strengths": F.softplus(
-                #self.read_strengths(x) + 1    ### Error
-            #),  # Add 1 and apply softplus for stability
-            "write_keys": self.write_keys(x),   
-            "write_strengths": self.write_strengths(x),   # debugging value
-            #"write_strengths": F.softplus(
-                #self.write_strengths(x) + 1   ### Error
-            #),  # Add 1 and apply softplus for stability
+            # "read_strengths": F.softplus(
+            # self.read_strengths(x) + 1    ### Error
+            # ),  # Add 1 and apply softplus for stability
+            "write_keys": self.write_keys(x),
+            "write_strengths": self.write_strengths(x),  # debugging value
+            # "write_strengths": F.softplus(
+            # self.write_strengths(x) + 1   ### Error
+            # ),  # Add 1 and apply softplus for stability
             "erase_vectors": torch.sigmoid(self.erase_vectors(x)),
             "write_vectors": torch.sigmoid(self.write_vectors(x)),
             "free_gate": torch.sigmoid(self.free_gate(x)),
@@ -134,25 +135,40 @@ class LinearView(nn.Module):
 
 if __name__ == "__main__":
     # Test parameters
-    batch_size = 4 # W: Constant name "batch_size" doesn't conform to UPPER_CASE naming style
-    hidden_size = 64 # W: Constant name "hidden_size" doesn't conform to UPPER_CASE naming style
-    interface_size = 256 # W: Constant name "interface_size" doesn't conform to UPPER_CASE naming style
-
-    def __init__(self, input_size, memory_size, word_size, num_writes, num_reads, batch_size=None):
+    batch_size = 4
+    hidden_size = 64
+    memory_size = 128
+    word_size = 20
+    num_reads = 4
+    num_writes = 1
 
     # Initialize interface
-    interface = DNC_InterfaceLayer_Adapted(hidden_size=hidden_size, interface_size=interface_size)
+    interface = DNC_InterfaceLayer_Adapted(
+        input_size=hidden_size,
+        memory_size=memory_size,
+        word_size=word_size,
+        num_writes=num_writes,
+        num_reads=num_reads,
+        batch_size=batch_size,
+    )
 
     # Create random state dictionary
-    state_dict = {"hidden_state": torch.randn(batch_size, hidden_size)}
+    state_dict = {"output": torch.randn(batch_size, hidden_size)}
 
     # Forward pass through interface
     interface_vectors = interface(state_dict)
 
     # Print results
-    print("\nDefaultInterface Test Results:")
-    print(f"State dictionary shape: {state_dict['hidden_state'].shape}")
-    print(f"Interface vectors: {interface_vectors}")
+    print("\nDNC_InterfaceLayer_Adapted Test Results:")
+    print(f"Input shape: {state_dict['output'].shape}")
 
-    # Summary
-    print(interface.summary())
+    # Print shapes of all interface vectors
+    print("\nInterface vector shapes:")
+    for key, value in interface_vectors.items():
+        print(f"{key}: {value.shape}")
+
+    # Print sample values
+    print("\nSample values:")
+    for key, value in interface_vectors.items():
+        if value.numel() > 0:
+            print(f"{key} (first element): {value[0, 0] if value.dim() > 1 else value[0]}")

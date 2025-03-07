@@ -50,7 +50,7 @@ class DNC(nn.Module):
 
         # Initialize controller state
         num_layers = getattr(self.controller, "num_layers", 1)
-        print(f"{self.controller_config=}") # not defined
+        print(f"{self.controller_config=}")  # not defined
         hidden_size = self.controller_config.get("hidden_size", 64)
 
         self.controller_state = (
@@ -185,3 +185,57 @@ class LinearView(nn.Module):
     def forward(self, x):
         # -1 because we assume batch dimension exists
         return self.layer(x).view(-1, *self.output_view)
+
+
+if __name__ == "__main__":
+    """Test the DNC implementation."""
+    import numpy as np
+
+    # Set random seed for reproducibility
+    torch.manual_seed(42)
+    np.random.seed(42)
+
+    print("Testing DNC implementation...")
+
+    # Define model parameters
+    input_size = 10
+    output_size = 5
+    controller_config = {"hidden_size": 64, "num_layers": 1}
+    memory_config = {"memory_size": 128, "word_size": 20, "num_reads": 4, "num_writes": 1}
+
+    # Create DNC model
+    model = DNC(
+        input_size=input_size,
+        output_size=output_size,
+        controller_config=controller_config,
+        memory_config=memory_config,
+    )
+
+    print(f"Model created with input_size={input_size}, output_size={output_size}")
+    print(f"Memory config: {memory_config}")
+    print(f"Controller config: {controller_config}")
+
+    # Generate random input sequence
+    seq_length = 5
+    batch_size = BATCH_SIZE
+    x = torch.randn(seq_length, batch_size, input_size)
+
+    print(f"Input shape: {x.shape}")
+
+    # Forward pass
+    print("Running forward pass...")
+    y = model(x)
+
+    print(f"Output shape: {y.shape}")
+    print(f"Output sample:\n{y[0, 0, :].detach().numpy()}")
+
+    # Test memory state
+    print("\nMemory state:")
+    model.debug()
+
+    # Test detach_state
+    print("\nTesting state detachment...")
+    model.detach_state()
+    print("State detached successfully")
+
+    print("\nDNC test completed successfully!")

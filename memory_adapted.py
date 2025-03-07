@@ -301,294 +301,201 @@ class Memory_Adapted(BaseMemory):
 
     def update_write_weights(self, usage, write_gate, allocation_gate, write_content_weights):
         """
-        Updates and returns the memory write weights.
+        Calculates and returns the next/current `write_weights`.
+        It's pretty similar to the one in DeepMind's code.
 
-        Args:
-            usage: Tensor of shape (batch_size, memory_size)
-            write_gate: Tensor of shape (batch_size, num_writes)
-            allocation_gate: Tensor of shape (batch_size, num_writes)
-            write_content_weights: Tensor of shape (batch_size, num_writes, memory_size)
-
-        Returns:
-            The updated write weights
+        Takes the updated usage, the write gate, the allocation gate, and the
+        write content weights (to find the complete write weights).
+        The updated usage is used here to find `phi` and allocation weightings.
         """
-        # Calculate allocation weights
-        alloc_weights = self.write_allocation_weights(allocation_gate, usage)
-
-        # Calculate the interpolation between content-based addressing and allocation-based addressing
-        updated_write_weights = write_gate.unsqueeze(2) * (
-            allocation_gate.unsqueeze(2) * alloc_weights
-            + (1 - allocation_gate).unsqueeze(2) * write_content_weights
+        # Find the allocation weights
+        write_allocation_weights = self.write_allocation_weights(
+            write_gate * allocation_gate, usage
         )
 
-        return updated_write_weights
+        # Add a dimension to gates for scalar multiplication along memory cells
+        write_gate = write_gate.unsqueeze(dim=-1)
+        allocation_gate = allocation_gate.unsqueeze(dim=-1)
+
+        # Calculate `write_weights` using allocation and content-based weights
+        write_weights = write_gate * (
+            allocation_gate * write_allocation_weights
+            + (1 - allocation_gate) * write_content_weights
+        )
+
+        return write_weights
 
     def write_allocation_weights(self, write_alloc_gates, usage):
         """
-        Calculates allocation weights given usage vector.
+        Calculates and returns the write weights due to allocation.
+        The returned tensor will have size of (BATCH_SIZE, num_writes, memory_size).
+        This function is pretty identical to the one in DeepMind's code.
+        `write_alloc_gates` is simply the product of `write_gate` and `allocation_gate`.
+        It is used, along with `usage`, in case there is more than one write head.
 
-        Args:
-            write_alloc_gates: Tensor of shape (batch_size, num_writes)
-            usage: Tensor of shape (batch_size, memory_size)
-
-        Returns:
-            Allocation weights of shape (batch_size, num_writes, memory_size)
+        For more than one write head, the code from DeepMind does what they call a
+        "simulated new usage", where it takes into account where the previous write
+        heads are writing, and update its own usage based on that. This implies that
+        there is some sort of precedence or ordering among the write heads.
         """
-        # Calculate the allocation weights for each write head using the memory usage
-        alloc_weights = []
+        # Add a dimension so that when we index the write head, we get
+        # a tensor of size (BATCH_SIZE, 1) to multiply it with allocation weights.
+        write_alloc_gates = write_alloc_gates.unsqueeze(dim=-1)
+
+        write_allocation_weights = []
         for i in range(self.num_writes):
-            alloc_weights.append(self.allocation(usage))
-            # Update usage for subsequent write heads
-            usage = usage + alloc_weights[i] * (1 - usage)
+            # Get allocation weights per write head and add it to the big list
+            write_allocation_weights.append(self.allocation(usage))
+            # This is the "simulated new usage" thing. Note that usage can only
+            # further increase due to the ith (and previous) write head activity.
+            usage += (1 - usage) * write_alloc_gates[:, i, :] * write_allocation_weights[i]
 
-        # Stack the allocation weights for all write heads
-        alloc_weights = torch.stack(alloc_weights, dim=1)
-
-        return alloc_weights
+        # Stack allocation weights into one tensor and return
+        return torch.stack(write_allocation_weights, dim=1)
 
     def allocation(self, usage):
         """
-        Calculates allocation weights given usage vector.
-
-        Args:
-            usage: Tensor of shape (batch_size, memory_size)
-
-        Returns:
-            Allocation weights of shape (batch_size, memory_size)
+        Sort of a subroutine that runs in `update_write_weights(...)`.
+        Returns the allocation weightings for one write head given the usage.
+        Note that `allocation_weights_per_write` has the same size as `usage`.
         """
-        # Sort usage in ascending order
-        sorted_usage, indices = torch.sort(usage, dim=1)
+        usage = self.EPSILON + (1 - self.EPSILON) * usage  # Avoid very small values
 
-        # Calculate the product of (1 - sorted_usage) for all memory locations
-        # This is a cumulative product along the memory dimension
-        # Shape: (batch_size, memory_size)
-        prod_sorted_usage = torch.cumprod(1 - sorted_usage, dim=1)
+        # Sort `usage` and get keep its original indices in `phi`.
+        sorted_usage, phi = usage.sort(dim=1)
 
-        # Shift the product right by one position and fill with ones
-        # This ensures the first location uses (1 - sorted_usage[0])
-        shifted_prod = torch.cat([torch.ones(self.batch_size, 1), prod_sorted_usage[:, :-1]], dim=1)
+        # We will add this `one` before the `sorted_usage`.
+        one = torch.ones(self.batch_size, 1)
+        padded_sorted_usage = torch.cat([one, sorted_usage], dim=1)
+        # Now we can take the "exclusive" cumprod of the `sorted_usage` by taking
+        # the cumprod of `padded_sorted_usage` and dropping the last column.
+        cumprod_sorted_usage = padded_sorted_usage.cumprod(dim=1)[:, :-1]
 
-        # Calculate allocation weights for sorted indices
-        sorted_allocation = sorted_usage * shifted_prod
+        # Next we find the allocation weights.
+        sorted_allocation = (1 - sorted_usage) * cumprod_sorted_usage
+        # And unsort them using the original indices in `phi`.
+        allocation_weights = sorted_allocation.gather(dim=1, index=phi)
 
-        # Gather the sorted allocation weights back to the original indices
-        # Create indices for the batch dimension
-        batch_indices = torch.arange(self.batch_size).unsqueeze(1)
-        batch_indices = batch_indices.expand(-1, self.memory_size)
+        return allocation_weights
 
-        # Create indices to gather from sorted to original order
-        gather_indices = torch.stack([batch_indices, indices], dim=2)
+    def update_memory_data(self, weights, erases, writes):
+        """
+        Update the data of the memory. Returns the updated memory.
+        The equation in the paper is I believe equivalent to this:
+              memory_data * erase_factor   +   write_words
+        M_t = M_t-1 o (1 - w_t^T * e_t) + (w_t^T * v_t)
+        """
+        print(f"\n========> ENTER update_memory_data")
+        print(f"weights: {weights.shape=}, mean: {weights.mean().item():.6f}")
+        print(f"erases: {erases.shape=}, mean: {erases.mean().item():.6f}")
+        print(f"writes: {writes.shape=}, mean: {writes.mean().item():.6f}")
 
-        # Gather elements from sorted_allocation using the indices
-        alloc = torch.gather(sorted_allocation, 1, indices.argsort(dim=1))
+        # Take the outer product of the weights and erase vectors per write head.
+        weighted_erase = weights.unsqueeze(dim=-1) * erases.unsqueeze(dim=-2)
+        print(f"==> adapted, update_memory_data, {weighted_erase.shape=}")
 
-        return alloc
+        # Take the aggregate erase factor through all write heads.
+        erase_factor = torch.prod(1 - weighted_erase, dim=1)
+        print(f"==> adapted, update_memory_data, {erase_factor.shape=}")
 
-    def update_memory_data(self, write_weights, erase_vector, write_vector):
-        """Update memory using write weights, erase vector and write vector with detailed debugging."""
+        # Calculate the weighted words to add/write to memory.
+        write_words = weights.transpose(1, 2) @ writes
+        print(f"==> adapted, update_memory_data, {write_words.shape=}")
 
-        print("\n==> ENTER update_memory_data")
-        # Print input values
-        print(
-            f"write_weights shape: {write_weights.shape}, mean: {write_weights.mean().item():.6f}"
-        )
-        print(f"erase_vector shape: {erase_vector.shape}, mean: {erase_vector.mean().item():.6f}")
-        print(f"write_vector shape: {write_vector.shape}, mean: {write_vector.mean().item():.6f}")
-
-        # Print initial memory state
-        print("\nBefore Update:")
-        print(
-            f"Memory shape: {self.state['memory'].shape}, mean: {self.state['memory'].mean().item():.6f}"
-        )
-        print(f"First row sample: {self.state['memory'][0, 0, :5].tolist()}")
-        print(f"Second row sample: {self.state['memory'][0, 1, :5].tolist()}")
-
-        # Reshape for batch matmul
-        expanded_write_weights = write_weights.unsqueeze(3)  # [b, w, m, 1]
-        expanded_erase_vector = erase_vector.unsqueeze(2)  # [b, w, 1, d]
-        print(f"adapted, {expanded_erase_vector.shape=}")
-        # print(f"adapted, {expanded_erase_vector=}")
-
-        # Calculate erase contribution
-        erase = expanded_write_weights @ expanded_erase_vector  # [b, w, m, d]
-        print(f"adapted, {erase.shape=}")
-        # print(f"adapted, {erase=}")
-        weighted_erase = erase.sum(dim=1)  # [b, m, d]
-        keep = 1 - weighted_erase
-
-        # Debug erase calculations
-        print("\nErase Calculations:")
-        print(f"erase shape: {erase.shape}, mean: {erase.mean().item():.6f}")
-        print(
-            f"weighted_erase shape: {weighted_erase.shape}, mean: {weighted_erase.mean().item():.6f}"
-        )
-        print(f"keep shape: {keep.shape}, mean: {keep.mean().item():.6f}")
-
-        # Calculate write contribution
-        expanded_write_weights = write_weights.unsqueeze(3)  # [b, w, m, 1]
-        expanded_write_vector = write_vector.unsqueeze(2)  # [b, w, 1, d]
-        write = expanded_write_weights @ expanded_write_vector  # [b, w, m, d]
-        weighted_write = write.sum(dim=1)  # [b, m, d]
-
-        # Debug write calculations
-        print("\nWrite Calculations:")
-        print(f"write shape: {write.shape}, mean: {write.mean().item():.6f}")
-        print(
-            f"weighted_write shape: {weighted_write.shape}, mean: {weighted_write.mean().item():.6f}"
-        )
-
-        # Debug final calculation
-        memory_keep = self.state["memory"] * keep
-        print(f"memory * keep mean: {memory_keep.mean().item():.6f}")
-        print(f"+ weighted_write mean: {weighted_write.mean().item():.6f}")
+        print(f"==> adapted, update_memory_data, {self.state['memory'].shape=}")
 
         # Update memory
-        self.state["memory"] = self.state["memory"] * keep + weighted_write
-
-        # Print final memory state
-        print("\nAfter Update:")
-        print(
-            f"Memory shape: {self.state['memory'].shape}, mean: {self.state['memory'].mean().item():.6f}"
-        )
-        print(f"First row sample: {self.state['memory'][0, 0, :5].tolist()}")
-        print(f"Second row sample: {self.state['memory'][0, 1, :5].tolist()}")
+        updated_memory = self.state["memory"] * erase_factor + write_words
 
         # For backward compatibility
-        self.memory_data = self.state["memory"]
+        self.memory_data = updated_memory
 
         # Return the updated memory
-        return self.state["memory"]
+        return updated_memory
 
     def update_linkage(self, write_weights):
         """
-        Updates and returns the linkage matrix and precedence weights.
+        Updates the temporal linkage.
+        Returns a tuple (link, precedence_weights)
 
-        Args:
-            write_weights: Tensor of shape (batch_size, num_writes, memory_size)
+        We expand the write weights to form a matrix such that
 
-        Returns:
-            Tuple of updated linkage matrix and precedence weights
+              [w_1, w_1, w_1]         [w_1, w_2, w_3]
+        w_i = [w_2, w_2, w_2],  w_j = [w_1, w_2, w_3]
+              [w_3, w_3, w_3]         [w_1, w_2, w_3]
+
+        for each write head, i.e. dim(w_i) = dim(w_j) =
+        (BATCH_SIZE, num_writes, memory_size, memory_size),
+        where in the above example, memory_size = 3.
+        This way, it can be shown that element-wise multiplication with
+        the link matrix such as (1 - w_i - w_j) * L
+        satisfies L[i,j] = (1 - w[i] - w[j]) @ L_prev[i,j].
+        We can arrive to the same conclusion using the same logic for w[i] * p[j].
         """
-        # Create a 2D identity matrix of size memory_size
-        eye = torch.eye(self.memory_size).unsqueeze(0).unsqueeze(0)
+        w_i = write_weights.unsqueeze(dim=-1)
+        w_j = write_weights.unsqueeze(dim=-2)
+        p_j = self.state["precedence_weights"].unsqueeze(dim=-2)  # p{t-1}_j to be pedantic
+        link = (1 - w_i - w_j) * self.state["link"] + w_i * p_j
+        inverted_eye = 1 - torch.eye(self.memory_size, device=link.device).expand_as(link)
+        link = link * inverted_eye  # Set diagonal to 0s
 
-        batch_size = write_weights.size(0)
+        # Calculate precedence weightings
+        precedence_weights = write_weights + self.state["precedence_weights"] * (
+            1 - write_weights.sum(dim=2, keepdim=True)
+        )
 
-        # Initialize link for this time step to be same as eye
-        updated_link = self.state["link"].clone()
-        updated_precedence = self.state["precedence_weights"].clone()
-
-        # Loop over each write head
-        for i in range(self.num_writes):
-            # Get current write weights for this head
-            write_weights_i = write_weights[:, i].unsqueeze(1)  # (batch_size, 1, memory_size)
-
-            # Calculate precedence vector (follows one-hot write)
-            # Decay the precedence weights by the sum of the new write weights
-            decay = 1 - write_weights_i.sum(dim=2, keepdim=True)  # (batch_size, 1, 1)
-
-            # Calculate the new precedence weights
-            updated_precedence[:, i] = (
-                decay.squeeze(1) * updated_precedence[:, i] + write_weights[:, i]
-            )
-
-            # Calculate the link matrix update
-            outer_product = torch.matmul(
-                write_weights_i.transpose(1, 2), updated_precedence[:, i].unsqueeze(1)
-            )  # (batch_size, memory_size, 1)
-
-            # Add the outer product to the link matrix, zeroing the diagonal
-            updated_link[:, i] = (1 - eye) * (
-                updated_link[:, i] * (1 - write_weights_i) * (1 - write_weights_i.transpose(1, 2))
-                + outer_product * write_weights_i.transpose(1, 2)
-            )
-
-        return updated_link, updated_precedence
+        return link, precedence_weights
 
     def update_read_weights(self, link, read_modes, content_weights):
         """
-        Updates and returns the read weights.
-
-        Args:
-            link: Tensor of shape (batch_size, num_writes, memory_size, memory_size)
-            read_modes: Tensor of shape (batch_size, num_reads, 3)
-            content_weights: Tensor of shape (batch_size, num_reads, memory_size)
-
-        Returns:
-            The updated read weights
+        Update read weights.
+        `content_weights` (BATCH_SIZE, num_reads, memory_size)
         """
-        # Initialize output variable
-        updated_read_weights = torch.zeros_like(self.state["read_weights"])
+        # Calculate the directional read weights
+        # both dim: (BATCH_SIZE, num_reads, num_writes, memory_size)
+        backward_weights = self.directional_read_weights(link, forward=False)
+        forward_weights = self.directional_read_weights(link, forward=True)
 
-        # Get forward/backward weights using the directional_read_weights function
-        forward_weights = self.directional_read_weights(link, self.state["read_weights"], True)
-        backward_weights = self.directional_read_weights(link, self.state["read_weights"], False)
+        # These are the (chosen) ranges of the three modes by definition
+        backward_mode_range = range(self.num_writes)
+        forward_mode_range = range(self.num_writes, 2 * self.num_writes)
+        content_mode_range = range(2 * self.num_writes, 2 * self.num_writes + 1)
 
-        # Calculate content mode weights (from content addressing)
-        content_mode = read_modes[:, :, 0].unsqueeze(2) * content_weights
+        # Extract the tensors for each mode (note their dimensions)
+        # forward/backward dim: (BATCH_SIZE, num_reads, num_writes, 1)
+        # content dim: (BATCH_SIZE, num_reads, 1)
+        backward_mode = read_modes[..., backward_mode_range].unsqueeze(dim=-1)
+        forward_mode = read_modes[..., forward_mode_range].unsqueeze(dim=-1)
+        content_mode = read_modes[..., content_mode_range]
 
-        # Loop over each read head
-        for i in range(self.num_reads):
-            # Calculate backward and forward mode contributions
-            backward_mode = torch.zeros(self.batch_size, self.memory_size).to(
-                content_weights.device
-            )
-            forward_mode = torch.zeros(self.batch_size, self.memory_size).to(content_weights.device)
+        # Get the final read weightings depending on the focus of the current
+        # mode using the modes weights to interpolate among the three read weights.
+        # (We sum the weights across the write heads for backward/forward modes).
+        backward_read = torch.sum(backward_weights * backward_mode, dim=2)
+        forward_read = torch.sum(forward_weights * forward_mode, dim=2)
+        content_read = content_mode * content_weights
 
-            # Add contributions from each write head
-            for j in range(self.num_writes):
-                backward_mode += read_modes[:, i, j + 1].unsqueeze(1) * backward_weights[:, j, i]
-                forward_mode += (
-                    read_modes[:, i, j + 1 + self.num_writes].unsqueeze(1)
-                    * forward_weights[:, j, i]
-                )
+        return backward_read + forward_read + content_read
 
-            # Combine all modes to get final read weights
-            updated_read_weights[:, i] = content_mode[:, i] + backward_mode + forward_mode
-
-        return updated_read_weights
-
-    def directional_read_weights(self, link, read_weights, forward):
+    def directional_read_weights(self, link, forward):
         """
-        Calculates directional read weights.
+        Calculates the directional read weights.
+        Returns a tensor of size (BATCH_SIZE, num_reads, num_writes, memory_size).
 
-        Args:
-            link: Tensor of shape (batch_size, num_writes, memory_size, memory_size)
-            read_weights: Tensor of shape (batch_size, num_reads, memory_size)
-            forward: Boolean indicating whether to move forward
-
-        Returns:
-            Directional read weights of shape (batch_size, num_writes, num_reads, memory_size)
+        This function is pretty tricky to understand well, and it does only one
+        little thing, which is multiply the link with the read_weights.
+        Though, we have to make sure that we do that for every write and read head.
         """
-        # Initialize output tensor
-        batch_size = link.size(0)
-        result = torch.zeros(batch_size, self.num_writes, self.num_reads, self.memory_size).to(
-            link.device
-        )
+        # Transpose link in case it is forward weightings (note opposite case)
+        if forward:
+            link = link.transpose(2, 3)
 
-        # Handle each write head and read head individually
-        for w in range(self.num_writes):
-            # Get the link matrix for this write head
-            write_link = link[:, w]  # (batch_size, memory_size, memory_size)
+        # Add a dim for write heads and multiply with the link matrix.
+        # Notice that dim 1 will be expanded to `num_writes` automatically.
+        dir_weights = self.state["read_weights"].unsqueeze(dim=1) @ link
 
-            # Choose direction
-            if not forward:
-                write_link = write_link.transpose(1, 2)
-
-            # Apply for each read head
-            for r in range(self.num_reads):
-                # Get read weights for this read head
-                rw = read_weights[:, r]  # (batch_size, memory_size)
-
-                # Calculate directional weights by matrix multiplication
-                # write_link: (batch_size, memory_size, memory_size)
-                # rw: (batch_size, memory_size) -> (batch_size, memory_size, 1)
-                directional_weights = torch.matmul(write_link, rw.unsqueeze(2)).squeeze(2)
-
-                # Store the result
-                result[:, w, r] = directional_weights
-
-        return result
+        # Return the directional weights with the flip fix as suggested.
+        return dir_weights.transpose(1, 2)
 
     def print_memory_state(self):
         print("\n==> print_memory_state in memory_adapted")
@@ -597,6 +504,7 @@ class Memory_Adapted(BaseMemory):
         print(f"{self.write_weights.norm()=}")
         print(f"{self.precedence_weights.norm()=}")
         print(f"{self.link.norm()=}")
+        print(f"{self.usage.norm()=}")
 
     def print_memory_data(self):
         print("\n==> print_memory_data in memory_adapted")
