@@ -287,7 +287,10 @@ def test_interface_with_memory():
     interface_vectors = interface({"output": controller_output})
 
     # Process through memory
-    read_words = memory(interface_vectors)
+    print(f"{interface_vectors=}")
+    for name in interface_vectors:
+        print(f"vector name: {name}")
+    read_words = memory(interface_vectors)  # ERROR
 
     print(f"Read words shape: {read_words.shape}")
     # Should be (batch_size, num_reads, word_size)

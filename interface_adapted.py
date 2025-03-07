@@ -130,3 +130,29 @@ class LinearView(nn.Module):
     def forward(self, x):
         # -1 because we assume batch dimension exists
         return self.layer(x).view(-1, *self.output_view)
+
+
+if __name__ == "__main__":
+    # Test parameters
+    batch_size = 4 # W: Constant name "batch_size" doesn't conform to UPPER_CASE naming style
+    hidden_size = 64 # W: Constant name "hidden_size" doesn't conform to UPPER_CASE naming style
+    interface_size = 256 # W: Constant name "interface_size" doesn't conform to UPPER_CASE naming style
+
+    def __init__(self, input_size, memory_size, word_size, num_writes, num_reads, batch_size=None):
+
+    # Initialize interface
+    interface = DNC_InterfaceLayer_Adapted(hidden_size=hidden_size, interface_size=interface_size)
+
+    # Create random state dictionary
+    state_dict = {"hidden_state": torch.randn(batch_size, hidden_size)}
+
+    # Forward pass through interface
+    interface_vectors = interface(state_dict)
+
+    # Print results
+    print("\nDefaultInterface Test Results:")
+    print(f"State dictionary shape: {state_dict['hidden_state'].shape}")
+    print(f"Interface vectors: {interface_vectors}")
+
+    # Summary
+    print(interface.summary())

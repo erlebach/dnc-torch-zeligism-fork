@@ -278,6 +278,11 @@ class Memory(BaseMemory):
         # Usage is retained, and in addition, memory cells that are being used for
         # writing (i.e. have high cell_memory_weights) with low usage should have
         # their usage increased, which is exactly what is done here.
+        # Fix: Add unsqueeze to make cell_write_weights have shape (batch_size, memory_size)
+        print(f"==> function update_usage, {self.usage.shape=}, {cell_write_weights.shape=}")
+        cell_write_weights = (
+            cell_write_weights.unsqueeze(1) if cell_write_weights.dim() == 1 else cell_write_weights
+        )
         usage_after_writes = self.usage + (1 - self.usage) * cell_write_weights
 
         # First, recall that there is a free_gate for each read-head.

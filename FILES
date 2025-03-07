@@ -37,8 +37,16 @@ Folder: dnc_architecture_graves_2016
 # Objective: 
 #   generate same output as from dnc_torch_zegligism/
 
+python dnc_architecture_graves_2016/interface.py
+  No error. 
+
 folder ./:
 ----------
+Objective: wrap the memory components of dnc_torch_zeligism/ in a polymorphic structure. 
+Done in memory_adapted.py, interface_adapted.py, dnc_adapted.py. 
+Approach: put test sections at the bottom of each file to test the module before and after adaptation.
+Once this is done, I will incorporate the Graves architecture in the polymorphic structure. 
+
 python dnc_adapted.py
    No output, no error
 
