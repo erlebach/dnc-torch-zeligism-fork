@@ -3,6 +3,7 @@ Adaptation of the original Memory class from dnc_torch_zeligism to use the polym
 defined in base.py while preserving the original functionality.
 """
 
+import sys
 from typing import Any, Dict, Tuple
 
 import torch
@@ -13,12 +14,18 @@ from beartype import beartype
 from dnc.base import BaseMemory
 from dnc_torch_zeligism.training_configs import BATCH_SIZE
 
+print_interface_counter: int = 0
+
 
 def print_interface(interface: dict[str, torch.Tensor]):
-    print("\n==> ENTER print_interface")
+    global print_interface_counter
+    print_interface_counter += 1
+    print(f"\n==> ENTER print_interface ({print_interface_counter})")
     for key, value in interface.items():
         print(f"{key}: {value.shape=}, mean: {value.mean().item():.6f}")
     print()
+    # if print_interface_counter == 10:
+    # sys.exit()
 
 
 def print_tensor(tens: torch.Tensor, msg: str):
@@ -63,9 +70,9 @@ class Memory_Adapted(BaseMemory):
         # Initialize memory state
         self.init_state()
 
-        print("INSIDE CONSTRUCTOR)")
-        self.print_memory_data()
-        self.print_memory_state()
+        # print("INSIDE CONSTRUCTOR)")
+        # self.print_memory_data()
+        # self.print_memory_state()
 
     def init_state(self) -> None:
         """Initialize the memory state with detailed diagnostics."""
@@ -90,10 +97,10 @@ class Memory_Adapted(BaseMemory):
         }
 
         # Print initialization details
-        print("\nMemory Initialization Details:")
-        print(f"Memory shape: {self.state['memory'].shape}")
-        print(f"Memory sample values: {self.state['memory'][0, 0, :5]}")
-        print(f"Memory mean: {self.state['memory'].mean().item()}")
+        # print("\nMemory Initialization Details:")
+        #rint(f"Memory shape: {self.state['memory'].shape}")
+        #rint(f"Memory sample values: {self.state['memory'][0, 0, :5]}")
+        #rint(f"Memory mean: {self.state['memory'].mean().item()}")
 
         # For backward compatibility, also set these as attributes
         self.memory_data = self.state["memory"]
@@ -182,6 +189,7 @@ class Memory_Adapted(BaseMemory):
             Read words (tensor of shape (batch_size, num_reads, word_size))
         """
         # This is equivalent to the original update method
+        # print("call self.update from Memory_Adapted::forward")
         return self.update(interface_vectors)
 
     def update(self, interface):
@@ -197,15 +205,16 @@ class Memory_Adapted(BaseMemory):
         Returns:
             Tensor of read words
         """
-        print("========> adapter, ENTER update")
-        print_interface(interface)
+        # print("========> adapter, ENTER update")
+        # print_interface(interface)
 
         # Store the interface for debugging
         self.last_interface = interface
 
         # Calculate the next usage
+        # print("about to call self.update_usage from update()")
         usage_t = self.update_usage(interface["free_gate"])
-        print_tensor(usage_t, "usage_t/free_gate")
+        # print_tensor(usage_t, "usage_t/free_gate")
 
         # Calculate the content-based write addresses
         write_content_weights = self.content_based_address(
@@ -213,7 +222,7 @@ class Memory_Adapted(BaseMemory):
         )
 
         # Find the next write weightings using the updated usage
-        print_interface(interface)  # OK
+        # print_interface(interface)  # OK
 
         write_weights_t = self.update_write_weights(
             usage_t, interface["write_gate"], interface["allocation_gate"], write_content_weights
@@ -245,13 +254,13 @@ class Memory_Adapted(BaseMemory):
         self.state["precedence_weights"] = precedence_weights_t
         self.state["read_weights"] = read_weights_t
 
-        print("====> INSIDE update")
-        print(f"{usage_t.shape=}, mean: {usage_t.mean().item():.6f}")
-        print(f"{write_weights_t.shape=}, mean: {write_weights_t.mean().item():.6f}")
-        print(f"{memory_data_t.shape=}, mean: {memory_data_t.mean().item():.6f}")
-        print(f"{link_t.shape=}, mean: {link_t.mean().item():.6f}")
-        print(f"{precedence_weights_t.shape=}, mean: {precedence_weights_t.mean().item():.6f}")
-        print(f"{read_weights_t.shape=}, mean: {read_weights_t.mean().item():.6f}")
+        #print("====> INSIDE update")
+        #print(f"{usage_t.shape=}, mean: {usage_t.mean().item():.6f}")
+        #print(f"{write_weights_t.shape=}, mean: {write_weights_t.mean().item():.6f}")
+        #print(f"{memory_data_t.shape=}, mean: {memory_data_t.mean().item():.6f}")
+        #print(f"{link_t.shape=}, mean: {link_t.mean().item():.6f}")
+        #print(f"{precedence_weights_t.shape=}, mean: {precedence_weights_t.mean().item():.6f}")
+        #print(f"{read_weights_t.shape=}, mean: {read_weights_t.mean().item():.6f}")
 
         # For backward compatibility
         self.memory_data = self.state["memory"]
@@ -262,7 +271,7 @@ class Memory_Adapted(BaseMemory):
         self.usage = self.state["usage"]
 
         # Return the new read words for each read head from new memory data
-        print("====> EXIT update")
+        #print("====> EXIT update")
         return read_weights_t @ memory_data_t
 
     def update_usage(self, free_gate):
@@ -295,7 +304,7 @@ class Memory_Adapted(BaseMemory):
         # Finally, we calculate the next usage as defined in the paper.
         usage = usage_after_writes * psi
 
-        print(f"==> update_usage, {usage=}")
+        # print(f"==> inside function update_usage, {usage=}")
 
         return usage
 
@@ -385,24 +394,24 @@ class Memory_Adapted(BaseMemory):
               memory_data * erase_factor   +   write_words
         M_t = M_t-1 o (1 - w_t^T * e_t) + (w_t^T * v_t)
         """
-        print(f"\n========> ENTER update_memory_data")
-        print(f"weights: {weights.shape=}, mean: {weights.mean().item():.6f}")
-        print(f"erases: {erases.shape=}, mean: {erases.mean().item():.6f}")
-        print(f"writes: {writes.shape=}, mean: {writes.mean().item():.6f}")
+        #print(f"\n========> ENTER update_memory_data")
+        #print(f"weights: {weights.shape=}, mean: {weights.mean().item():.6f}")
+        #print(f"erases: {erases.shape=}, mean: {erases.mean().item():.6f}")
+        #print(f"writes: {writes.shape=}, mean: {writes.mean().item():.6f}")
 
         # Take the outer product of the weights and erase vectors per write head.
         weighted_erase = weights.unsqueeze(dim=-1) * erases.unsqueeze(dim=-2)
-        print(f"==> adapted, update_memory_data, {weighted_erase.shape=}")
+        #print(f"==> adapted, update_memory_data, {weighted_erase.shape=}")
 
         # Take the aggregate erase factor through all write heads.
         erase_factor = torch.prod(1 - weighted_erase, dim=1)
-        print(f"==> adapted, update_memory_data, {erase_factor.shape=}")
+        #print(f"==> adapted, update_memory_data, {erase_factor.shape=}")
 
         # Calculate the weighted words to add/write to memory.
         write_words = weights.transpose(1, 2) @ writes
-        print(f"==> adapted, update_memory_data, {write_words.shape=}")
+        #print(f"==> adapted, update_memory_data, {write_words.shape=}")
 
-        print(f"==> adapted, update_memory_data, {self.state['memory'].shape=}")
+        #print(f"==> adapted, update_memory_data, {self.state['memory'].shape=}")
 
         # Update memory
         updated_memory = self.state["memory"] * erase_factor + write_words
@@ -415,36 +424,55 @@ class Memory_Adapted(BaseMemory):
 
     def update_linkage(self, write_weights):
         """
-        Updates the temporal linkage.
-        Returns a tuple (link, precedence_weights)
+        Update the temporal linkage matrix given the new write weights.
 
-        We expand the write weights to form a matrix such that
+        Args:
+            write_weights: The write weights for the current timestep.
 
-              [w_1, w_1, w_1]         [w_1, w_2, w_3]
-        w_i = [w_2, w_2, w_2],  w_j = [w_1, w_2, w_3]
-              [w_3, w_3, w_3]         [w_1, w_2, w_3]
-
-        for each write head, i.e. dim(w_i) = dim(w_j) =
-        (BATCH_SIZE, num_writes, memory_size, memory_size),
-        where in the above example, memory_size = 3.
-        This way, it can be shown that element-wise multiplication with
-        the link matrix such as (1 - w_i - w_j) * L
-        satisfies L[i,j] = (1 - w[i] - w[j]) @ L_prev[i,j].
-        We can arrive to the same conclusion using the same logic for w[i] * p[j].
+        Returns:
+            Tuple of (updated_link, updated_precedence_weights)
         """
-        w_i = write_weights.unsqueeze(dim=-1)
-        w_j = write_weights.unsqueeze(dim=-2)
-        p_j = self.state["precedence_weights"].unsqueeze(dim=-2)  # p{t-1}_j to be pedantic
-        link = (1 - w_i - w_j) * self.state["link"] + w_i * p_j
-        inverted_eye = 1 - torch.eye(self.memory_size, device=link.device).expand_as(link)
-        link = link * inverted_eye  # Set diagonal to 0s
+        # Get the current link matrix and precedence weights
+        link = self.state["link"]
+        precedence_weights = self.state["precedence_weights"]
 
-        # Calculate precedence weightings
-        precedence_weights = write_weights + self.state["precedence_weights"] * (
-            1 - write_weights.sum(dim=2, keepdim=True)
-        )
+        # Create a new link matrix instead of modifying in-place
+        batch_size = self.batch_size
+        memory_size = self.memory_size
 
-        return link, precedence_weights
+        # Create a new tensor for the updated link matrix
+        updated_link = torch.zeros_like(link)
+
+        # Update the link matrix for each write head
+        for i in range(self.num_writes):
+            write_weights_i = write_weights[:, i].unsqueeze(2)
+
+            # Compute the outer product of precedence weights and write weights
+            outer_product = precedence_weights.unsqueeze(2) * write_weights_i.transpose(1, 2)
+
+            # Update the link matrix (avoid in-place operations)
+            updated_link = updated_link + (1 - link) * outer_product
+
+            # Instead, create a new tensor for this part of the calculation
+            write_weights_outer = write_weights_i * write_weights_i.transpose(1, 2)
+            link_scale = (1 - write_weights_i) * (1 - write_weights_i.transpose(1, 2))
+            updated_link = updated_link * link_scale
+
+        # Update precedence weights (avoid in-place operations)
+        # Create a new tensor for updated precedence weights
+        updated_precedence_weights = (
+            1 - write_weights.sum(dim=1, keepdim=True)
+        ) * precedence_weights
+
+        # Add the current write weights
+        for i in range(self.num_writes):
+            updated_precedence_weights = updated_precedence_weights + write_weights[:, i]
+
+        # Update the state with the new tensors
+        self.state["link"] = updated_link
+        self.state["precedence_weights"] = updated_precedence_weights
+
+        return updated_link, updated_precedence_weights
 
     def update_read_weights(self, link, read_modes, content_weights):
         """
@@ -574,6 +602,7 @@ if __name__ == "__main__":
     )  # Should be close to 1.0
 
     # Test memory update
+    print("memory.update in if __name__ == '__main__'")
     read_words = memory.update(interface)
 
     # Print results after update

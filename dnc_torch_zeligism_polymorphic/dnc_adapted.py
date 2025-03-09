@@ -207,7 +207,7 @@ if __name__ == "__main__":
         torch.manual_seed(42)
         np.random.seed(42)
 
-        print("Testing DNC_Adapted implementation...")
+        #print("Testing DNC_Adapted implementation...")
 
         # Define model parameters
         input_size = 10
@@ -222,7 +222,7 @@ if __name__ == "__main__":
         }
 
         # Create DNC_Adapted model
-        print("Creating DNC_Adapted model...")
+        # print("Creating DNC_Adapted model...")
         model = DNC_Adapted(
             input_size=input_size,
             output_size=output_size,
@@ -230,39 +230,77 @@ if __name__ == "__main__":
             memory_config=memory_config,
         )
 
-        print(f"Model created with input_size={input_size}, output_size={output_size}")
-        print(f"Memory config: {memory_config}")
-        print(f"Controller config: {controller_config}")
+        #print(f"Model created with input_size={input_size}, output_size={output_size}")
+        #print(f"Memory config: {memory_config}")
+        #print(f"Controller config: {controller_config}")
 
         # Generate random input sequence
         seq_length = 5
         batch_size = BATCH_SIZE
         x = torch.randn(seq_length, batch_size, input_size)
-
-        print(f"Input shape: {x.shape}")
+        #print(f"Input shape: {x.shape}")
+        # print(f"Input values: {x}")
 
         # Forward pass
-        print("Running forward pass...")
+        #print("Running forward pass...")
         y = model(x)
+        #print("==============================================================")
 
-        print(f"Output shape: {y.shape}")
-        print(f"Output sample:\n{y[0, 0, :].detach().numpy()}")
+        # print(f"Output shape: {y.shape}")
+        # print(f"Output sample:\n{y[0, 0, :].detach().numpy()}")
 
         # Test memory state
-        print("\nMemory state:")
+        #print("\nMemory state:")
         model.debug()
+        # quit()
 
         # Test state dictionary
-        print("\nTesting state dictionary...")
+        #print("\nTesting state dictionary...")
         state_dict = model.get_state_dict()
-        print(f"State dictionary keys: {list(state_dict.keys())}")
+        #print(f"State dictionary keys: {list(state_dict.keys())}")
 
         # Test detach_state
-        print("\nTesting state detachment...")
+        #print("\nTesting state detachment...")
         model.detach_state()
-        print("State detached successfully")
+        #print("State detached successfully")
 
-        print("\nDNC_Adapted test completed successfully!")
+        # Store initial weights for comparison
+        #print("\nStoring initial weights...")
+        initial_weights = {}
+        for name, param in model.named_parameters():
+            initial_weights[name] = param.clone().detach()
+
+        # Create a simple target and loss function
+        #print("\nPerforming backpropagation...")
+        target = torch.randn(seq_length, batch_size, output_size)
+        criterion = torch.nn.MSELoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+
+        # Forward pass, compute loss, and backpropagate
+        optimizer.zero_grad()
+        output = model(x)
+        loss = criterion(output, target)
+        loss.backward()
+        #print("BEFORE optimizer.step")
+        optimizer.step()
+
+        #print(f"Loss after one update: {loss.item()}", flush=True)
+
+        # Check weight changes
+        #print("\nChecking weight changes after backpropagation:")
+        weight_changes = {}
+        for name, param in model.named_parameters():
+            weight_change = torch.abs(param - initial_weights[name]).mean().item()
+            weight_changes[name] = weight_change
+            #print(f"{name}: mean absolute change = {weight_change}")
+
+        # Find largest weight change
+        max_change_name = max(weight_changes, key=weight_changes.get)
+        #print(
+            #f"\nLargest weight change in: {max_change_name} with change of {weight_changes[max_change_name]}"
+        #)
+
+        #print("\nDNC_Adapted test completed successfully!")
 
     except ImportError as e:
         print(f"\nERROR: Import error occurred: {e}")

@@ -1,0 +1,302 @@
+Testing DNC_Adapted implementation...
+Creating DNC_Adapted model...
+
+Memory Configuration:
+Batch size: 8
+Memory size: 128
+Word size: 20
+Num reads: 4
+Num writes: 1
+
+Memory Initialization Details:
+Memory shape: torch.Size([8, 128, 20])
+Memory sample values: tensor([0., 0., 0., 0., 0.])
+Memory mean: 0.0
+INSIDE CONSTRUCTOR)
+
+==> print_memory_data in memory_adapted
+Original memory data mean:  0.0
+self.memory_data[0][0:2]=tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+        [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]])
+
+==> print_memory_state in memory_adapted
+self.memory_data.norm()=tensor(0.)
+self.read_weights.norm()=tensor(0.)
+self.write_weights.norm()=tensor(0.)
+self.precedence_weights.norm()=tensor(0.)
+self.link.norm()=tensor(0.)
+self.usage.norm()=tensor(0.)
+
+Memory Configuration:
+Batch size: 8
+Memory size: 128
+Word size: 20
+Num reads: 4
+Num writes: 1
+
+Memory Initialization Details:
+Memory shape: torch.Size([8, 128, 20])
+Memory sample values: tensor([0., 0., 0., 0., 0.])
+Memory mean: 0.0
+Model created with input_size=10, output_size=5
+Memory config: {'memory_size': 128, 'word_size': 20, 'num_reads': 4, 'num_writes': 1, 'batch_size': 8}
+Controller config: {'hidden_size': 64, 'num_layers': 1}
+Input shape: torch.Size([5, 8, 10])
+Running forward pass...
+call self.update from Memory_Adapted::forward
+========> adapter, ENTER update
+
+==> ENTER print_interface (1)
+read_keys: value.shape=torch.Size([8, 4, 20]), mean: 0.013649
+read_strengths: value.shape=torch.Size([8, 4]), mean: -0.045715
+write_keys: value.shape=torch.Size([8, 1, 20]), mean: 0.001542
+write_strengths: value.shape=torch.Size([8, 1]), mean: -0.072180
+erase_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.499234
+write_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.505212
+free_gate: value.shape=torch.Size([8, 4]), mean: 0.512618
+allocation_gate: value.shape=torch.Size([8, 1]), mean: 0.530086
+write_gate: value.shape=torch.Size([8, 1]), mean: 0.480269
+read_modes: value.shape=torch.Size([8, 4, 3]), mean: 0.333333
+
+about to call self.update_usage from update()
+==> inside function update_usage, usage=tensor([[0., 0., 0.,  ..., 0., 0., 0.],
+        [0., 0., 0.,  ..., 0., 0., 0.],
+        [0., 0., 0.,  ..., 0., 0., 0.],
+        ...,
+        [0., 0., 0.,  ..., 0., 0., 0.],
+        [0., 0., 0.,  ..., 0., 0., 0.],
+        [0., 0., 0.,  ..., 0., 0., 0.]], grad_fn=<MulBackward0>)
+==> usage_t/free_gate, tens.shape=torch.Size([8, 128]), norm: 0.000000
+
+==> ENTER print_interface (2)
+read_keys: value.shape=torch.Size([8, 4, 20]), mean: 0.013649
+read_strengths: value.shape=torch.Size([8, 4]), mean: -0.045715
+write_keys: value.shape=torch.Size([8, 1, 20]), mean: 0.001542
+write_strengths: value.shape=torch.Size([8, 1]), mean: -0.072180
+erase_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.499234
+write_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.505212
+free_gate: value.shape=torch.Size([8, 4]), mean: 0.512618
+allocation_gate: value.shape=torch.Size([8, 1]), mean: 0.530086
+write_gate: value.shape=torch.Size([8, 1]), mean: 0.480269
+read_modes: value.shape=torch.Size([8, 4, 3]), mean: 0.333333
+
+
+========> ENTER update_memory_data
+weights: weights.shape=torch.Size([8, 1, 128]), mean: 0.003752
+erases: erases.shape=torch.Size([8, 1, 20]), mean: 0.499234
+writes: writes.shape=torch.Size([8, 1, 20]), mean: 0.505212
+==> adapted, update_memory_data, weighted_erase.shape=torch.Size([8, 1, 128, 20])
+==> adapted, update_memory_data, erase_factor.shape=torch.Size([8, 128, 20])
+==> adapted, update_memory_data, write_words.shape=torch.Size([8, 128, 20])
+==> adapted, update_memory_data, self.state['memory'].shape=torch.Size([8, 128, 20])
+====> INSIDE update
+usage_t.shape=torch.Size([8, 128]), mean: 0.001989
+write_weights_t.shape=torch.Size([8, 1, 128]), mean: 0.003752
+memory_data_t.shape=torch.Size([8, 128, 20]), mean: 0.001896
+link_t.shape=torch.Size([8, 1, 128, 128]), mean: 0.000001
+precedence_weights_t.shape=torch.Size([8, 1, 128]), mean: 0.003752
+read_weights_t.shape=torch.Size([8, 4, 128]), mean: 0.002557
+====> EXIT update
+call self.update from Memory_Adapted::forward
+========> adapter, ENTER update
+
+==> ENTER print_interface (3)
+read_keys: value.shape=torch.Size([8, 4, 20]), mean: 0.013678
+read_strengths: value.shape=torch.Size([8, 4]), mean: -0.045114
+write_keys: value.shape=torch.Size([8, 1, 20]), mean: 0.000488
+write_strengths: value.shape=torch.Size([8, 1]), mean: -0.080064
+erase_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.500780
+write_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.505942
+free_gate: value.shape=torch.Size([8, 4]), mean: 0.513196
+allocation_gate: value.shape=torch.Size([8, 1]), mean: 0.527744
+write_gate: value.shape=torch.Size([8, 1]), mean: 0.483086
+read_modes: value.shape=torch.Size([8, 4, 3]), mean: 0.333333
+
+about to call self.update_usage from update()
+==> inside function update_usage, usage=tensor([[0.4341, 0.0018, 0.0018,  ..., 0.0018, 0.0018, 0.0018],
+        [0.4482, 0.0017, 0.0017,  ..., 0.0017, 0.0017, 0.0017],
+        [0.4445, 0.0017, 0.0017,  ..., 0.0017, 0.0017, 0.0017],
+        ...,
+        [0.4346, 0.0018, 0.0018,  ..., 0.0018, 0.0018, 0.0018],
+        [0.4372, 0.0018, 0.0018,  ..., 0.0018, 0.0018, 0.0018],
+        [0.4656, 0.0017, 0.0017,  ..., 0.0017, 0.0017, 0.0017]],
+       grad_fn=<MulBackward0>)
+==> usage_t/free_gate, tens.shape=torch.Size([8, 128]), norm: 1.255379
+
+==> ENTER print_interface (4)
+read_keys: value.shape=torch.Size([8, 4, 20]), mean: 0.013678
+read_strengths: value.shape=torch.Size([8, 4]), mean: -0.045114
+write_keys: value.shape=torch.Size([8, 1, 20]), mean: 0.000488
+write_strengths: value.shape=torch.Size([8, 1]), mean: -0.080064
+erase_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.500780
+write_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.505942
+free_gate: value.shape=torch.Size([8, 4]), mean: 0.513196
+allocation_gate: value.shape=torch.Size([8, 1]), mean: 0.527744
+write_gate: value.shape=torch.Size([8, 1]), mean: 0.483086
+read_modes: value.shape=torch.Size([8, 4, 3]), mean: 0.333333
+
+
+========> ENTER update_memory_data
+weights: weights.shape=torch.Size([8, 1, 128]), mean: 0.003774
+erases: erases.shape=torch.Size([8, 1, 20]), mean: 0.500780
+writes: writes.shape=torch.Size([8, 1, 20]), mean: 0.505942
+==> adapted, update_memory_data, weighted_erase.shape=torch.Size([8, 1, 128, 20])
+==> adapted, update_memory_data, erase_factor.shape=torch.Size([8, 128, 20])
+==> adapted, update_memory_data, write_words.shape=torch.Size([8, 128, 20])
+==> adapted, update_memory_data, self.state['memory'].shape=torch.Size([8, 128, 20])
+====> INSIDE update
+usage_t.shape=torch.Size([8, 128]), mean: 0.007191
+write_weights_t.shape=torch.Size([8, 1, 128]), mean: 0.003774
+memory_data_t.shape=torch.Size([8, 128, 20]), mean: 0.003803
+link_t.shape=torch.Size([8, 1, 128, 128]), mean: 0.000003
+precedence_weights_t.shape=torch.Size([8, 1, 128]), mean: 0.005713
+read_weights_t.shape=torch.Size([8, 4, 128]), mean: 0.002553
+====> EXIT update
+call self.update from Memory_Adapted::forward
+========> adapter, ENTER update
+
+==> ENTER print_interface (5)
+read_keys: value.shape=torch.Size([8, 4, 20]), mean: 0.013894
+read_strengths: value.shape=torch.Size([8, 4]), mean: -0.038327
+write_keys: value.shape=torch.Size([8, 1, 20]), mean: -0.000440
+write_strengths: value.shape=torch.Size([8, 1]), mean: -0.071073
+erase_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.500246
+write_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.506398
+free_gate: value.shape=torch.Size([8, 4]), mean: 0.513950
+allocation_gate: value.shape=torch.Size([8, 1]), mean: 0.528535
+write_gate: value.shape=torch.Size([8, 1]), mean: 0.484601
+read_modes: value.shape=torch.Size([8, 4, 3]), mean: 0.333333
+
+about to call self.update_usage from update()
+==> inside function update_usage, usage=tensor([[0.4328, 0.0036, 0.0036,  ..., 0.0036, 0.0045, 0.4450],
+        [0.4468, 0.0035, 0.0035,  ..., 0.0035, 0.0044, 0.4510],
+        [0.4432, 0.0034, 0.0034,  ..., 0.0034, 0.0043, 0.4477],
+        ...,
+        [0.4333, 0.0036, 0.0036,  ..., 0.0036, 0.0046, 0.4435],
+        [0.4360, 0.0036, 0.0036,  ..., 0.0036, 0.0045, 0.4410],
+        [0.4640, 0.0035, 0.0035,  ..., 0.0035, 0.0044, 0.4494]],
+       grad_fn=<MulBackward0>)
+==> usage_t/free_gate, tens.shape=torch.Size([8, 128]), norm: 1.775905
+
+==> ENTER print_interface (6)
+read_keys: value.shape=torch.Size([8, 4, 20]), mean: 0.013894
+read_strengths: value.shape=torch.Size([8, 4]), mean: -0.038327
+write_keys: value.shape=torch.Size([8, 1, 20]), mean: -0.000440
+write_strengths: value.shape=torch.Size([8, 1]), mean: -0.071073
+erase_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.500246
+write_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.506398
+free_gate: value.shape=torch.Size([8, 4]), mean: 0.513950
+allocation_gate: value.shape=torch.Size([8, 1]), mean: 0.528535
+write_gate: value.shape=torch.Size([8, 1]), mean: 0.484601
+read_modes: value.shape=torch.Size([8, 4, 3]), mean: 0.333333
+
+
+========> ENTER update_memory_data
+weights: weights.shape=torch.Size([8, 1, 128]), mean: 0.003786
+erases: erases.shape=torch.Size([8, 1, 20]), mean: 0.500246
+writes: writes.shape=torch.Size([8, 1, 20]), mean: 0.506398
+==> adapted, update_memory_data, weighted_erase.shape=torch.Size([8, 1, 128, 20])
+==> adapted, update_memory_data, erase_factor.shape=torch.Size([8, 128, 20])
+==> adapted, update_memory_data, write_words.shape=torch.Size([8, 128, 20])
+==> adapted, update_memory_data, self.state['memory'].shape=torch.Size([8, 128, 20])
+====> INSIDE update
+usage_t.shape=torch.Size([8, 128]), mean: 0.012058
+write_weights_t.shape=torch.Size([8, 1, 128]), mean: 0.003786
+memory_data_t.shape=torch.Size([8, 128, 20]), mean: 0.005667
+link_t.shape=torch.Size([8, 1, 128, 128]), mean: 0.000005
+precedence_weights_t.shape=torch.Size([8, 1, 128]), mean: 0.006730
+read_weights_t.shape=torch.Size([8, 4, 128]), mean: 0.002540
+====> EXIT update
+call self.update from Memory_Adapted::forward
+========> adapter, ENTER update
+
+==> ENTER print_interface (7)
+read_keys: value.shape=torch.Size([8, 4, 20]), mean: 0.010294
+read_strengths: value.shape=torch.Size([8, 4]), mean: -0.035910
+write_keys: value.shape=torch.Size([8, 1, 20]), mean: 0.002472
+write_strengths: value.shape=torch.Size([8, 1]), mean: -0.057345
+erase_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.500027
+write_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.505149
+free_gate: value.shape=torch.Size([8, 4]), mean: 0.512473
+allocation_gate: value.shape=torch.Size([8, 1]), mean: 0.530938
+write_gate: value.shape=torch.Size([8, 1]), mean: 0.488654
+read_modes: value.shape=torch.Size([8, 4, 3]), mean: 0.333333
+
+about to call self.update_usage from update()
+==> inside function update_usage, usage=tensor([[0.4315, 0.0053, 0.0053,  ..., 0.0053, 0.4631, 0.4436],
+        [0.4454, 0.0052, 0.0052,  ..., 0.0052, 0.4312, 0.4496],
+        [0.4418, 0.0052, 0.0052,  ..., 0.0052, 0.4635, 0.4463],
+        ...,
+        [0.4321, 0.0055, 0.0055,  ..., 0.0055, 0.4470, 0.4422],
+        [0.4347, 0.0054, 0.0054,  ..., 0.0054, 0.4408, 0.4397],
+        [0.4626, 0.0053, 0.0053,  ..., 0.0053, 0.0062, 0.6953]],
+       grad_fn=<MulBackward0>)
+==> usage_t/free_gate, tens.shape=torch.Size([8, 128]), norm: 2.232876
+
+==> ENTER print_interface (8)
+read_keys: value.shape=torch.Size([8, 4, 20]), mean: 0.010294
+read_strengths: value.shape=torch.Size([8, 4]), mean: -0.035910
+write_keys: value.shape=torch.Size([8, 1, 20]), mean: 0.002472
+write_strengths: value.shape=torch.Size([8, 1]), mean: -0.057345
+erase_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.500027
+write_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.505149
+free_gate: value.shape=torch.Size([8, 4]), mean: 0.512473
+allocation_gate: value.shape=torch.Size([8, 1]), mean: 0.530938
+write_gate: value.shape=torch.Size([8, 1]), mean: 0.488654
+read_modes: value.shape=torch.Size([8, 4, 3]), mean: 0.333333
+
+
+========> ENTER update_memory_data
+weights: weights.shape=torch.Size([8, 1, 128]), mean: 0.003818
+erases: erases.shape=torch.Size([8, 1, 20]), mean: 0.500027
+writes: writes.shape=torch.Size([8, 1, 20]), mean: 0.505149
+==> adapted, update_memory_data, weighted_erase.shape=torch.Size([8, 1, 128, 20])
+==> adapted, update_memory_data, erase_factor.shape=torch.Size([8, 128, 20])
+==> adapted, update_memory_data, write_words.shape=torch.Size([8, 128, 20])
+==> adapted, update_memory_data, self.state['memory'].shape=torch.Size([8, 128, 20])
+====> INSIDE update
+usage_t.shape=torch.Size([8, 128]), mean: 0.016895
+write_weights_t.shape=torch.Size([8, 1, 128]), mean: 0.003818
+memory_data_t.shape=torch.Size([8, 128, 20]), mean: 0.007572
+link_t.shape=torch.Size([8, 1, 128, 128]), mean: 0.000008
+precedence_weights_t.shape=torch.Size([8, 1, 128]), mean: 0.007259
+read_weights_t.shape=torch.Size([8, 4, 128]), mean: 0.002513
+====> EXIT update
+call self.update from Memory_Adapted::forward
+========> adapter, ENTER update
+
+==> ENTER print_interface (9)
+read_keys: value.shape=torch.Size([8, 4, 20]), mean: 0.012176
+read_strengths: value.shape=torch.Size([8, 4]), mean: -0.036364
+write_keys: value.shape=torch.Size([8, 1, 20]), mean: 0.008329
+write_strengths: value.shape=torch.Size([8, 1]), mean: -0.079159
+erase_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.501001
+write_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.504446
+free_gate: value.shape=torch.Size([8, 4]), mean: 0.511140
+allocation_gate: value.shape=torch.Size([8, 1]), mean: 0.534189
+write_gate: value.shape=torch.Size([8, 1]), mean: 0.479189
+read_modes: value.shape=torch.Size([8, 4, 3]), mean: 0.333333
+
+about to call self.update_usage from update()
+==> inside function update_usage, usage=tensor([[0.4303, 0.0071, 0.0071,  ..., 0.4711, 0.4617, 0.4423],
+        [0.4441, 0.0069, 0.0069,  ..., 0.0069, 0.6833, 0.4482],
+        [0.4405, 0.0069, 0.0069,  ..., 0.4654, 0.4620, 0.4449],
+        ...,
+        [0.4308, 0.0072, 0.0072,  ..., 0.4577, 0.4456, 0.4408],
+        [0.4335, 0.0071, 0.0071,  ..., 0.4272, 0.4395, 0.4384],
+        [0.4612, 0.0071, 0.0071,  ..., 0.0071, 0.4500, 0.6922]],
+       grad_fn=<MulBackward0>)
+==> usage_t/free_gate, tens.shape=torch.Size([8, 128]), norm: 2.585723
+
+==> ENTER print_interface (10)
+read_keys: value.shape=torch.Size([8, 4, 20]), mean: 0.012176
+read_strengths: value.shape=torch.Size([8, 4]), mean: -0.036364
+write_keys: value.shape=torch.Size([8, 1, 20]), mean: 0.008329
+write_strengths: value.shape=torch.Size([8, 1]), mean: -0.079159
+erase_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.501001
+write_vectors: value.shape=torch.Size([8, 1, 20]), mean: 0.504446
+free_gate: value.shape=torch.Size([8, 4]), mean: 0.511140
+allocation_gate: value.shape=torch.Size([8, 1]), mean: 0.534189
+write_gate: value.shape=torch.Size([8, 1]), mean: 0.479189
+read_modes: value.shape=torch.Size([8, 4, 3]), mean: 0.333333
+

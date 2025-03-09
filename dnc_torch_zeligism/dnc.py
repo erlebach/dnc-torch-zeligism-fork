@@ -110,6 +110,7 @@ class DNC(nn.Module):
             the controller's output to all the layers, and
             then passing the result as an input to memory. """
             interface = self.interface_layer(controller_output)
+            print("before memory_update, call self.memory.update() from DNC::forward")
             self.read_words = self.memory.update(interface)
 
             pre_output = torch.cat([controller_output, self.read_words.view(BATCH_SIZE, -1)], dim=1)
@@ -204,6 +205,7 @@ if __name__ == "__main__":
     memory_config = {"memory_size": 128, "word_size": 20, "num_reads": 4, "num_writes": 1}
 
     # Create DNC model
+    print("Creating DNC model...")
     model = DNC(
         input_size=input_size,
         output_size=output_size,
@@ -219,23 +221,61 @@ if __name__ == "__main__":
     seq_length = 5
     batch_size = BATCH_SIZE
     x = torch.randn(seq_length, batch_size, input_size)
-
     print(f"Input shape: {x.shape}")
+    # print(f"Input values: {x}")
 
     # Forward pass
     print("Running forward pass...")
     y = model(x)
+    print("==============================================================")
 
-    print(f"Output shape: {y.shape}")
-    print(f"Output sample:\n{y[0, 0, :].detach().numpy()}")
+    # print(f"Output shape: {y.shape}")
+    # print(f"Output sample:\n{y[0, 0, :].detach().numpy()}")
 
     # Test memory state
     print("\nMemory state:")
     model.debug()
+    quit()
 
     # Test detach_state
     print("\nTesting state detachment...")
     model.detach_state()
     print("State detached successfully")
+
+    # Store initial weights for comparison
+    print("\nStoring initial weights...")
+    initial_weights = {}
+    for name, param in model.named_parameters():
+        initial_weights[name] = param.clone().detach()
+
+    # Create a simple target and loss function
+    print("\nPerforming backpropagation...")
+    target = torch.randn(seq_length, batch_size, output_size)
+    criterion = torch.nn.MSELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+
+    # Forward pass, compute loss, and backpropagate
+    optimizer.zero_grad()
+    output = model(x)
+    loss = criterion(output, target)
+    loss.backward()
+    print("BEFORE optimizer.step")
+    optimizer.step()
+
+    print(f"Loss after one update: {loss.item()}")
+
+    # Check weight changes
+    print("\nChecking weight changes after backpropagation:")
+    weight_changes = {}
+    for name, param in model.named_parameters():
+        weight_change = torch.abs(param - initial_weights[name]).mean().item()
+        weight_changes[name] = weight_change
+        print(f"{name}: mean absolute change = {weight_change}")
+
+    # Find largest weight change
+    max_change_name = max(weight_changes, key=weight_changes.get)
+    print(
+        f"\nLargest weight change in: {max_change_name} with change of {weight_changes[max_change_name]}"
+    )
 
     print("\nDNC test completed successfully!")

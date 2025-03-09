@@ -1,3 +1,5 @@
+import sys
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,12 +9,18 @@ from dnc_torch_zeligism.training_configs import *
 
 """Memory."""
 
+print_interface_counter: int = 0
+
 
 def print_interface(interface: dict[str, torch.Tensor]):
-    print("\n==> ENTER print_interface")
+    global print_interface_counter
+    print_interface_counter += 1
+    print(f"\n==> ENTER print_interface ({print_interface_counter})")
     for key, value in interface.items():
         print(f"{key}: {value.shape=}, mean: {value.mean().item():.6f}")
     print()
+    #if print_interface_counter == 10:
+        #sys.exit()
 
 
 def print_tensor(tens: torch.Tensor, msg: str):
@@ -166,6 +174,7 @@ class Memory:
         self.last_interface = interface
 
         # Calculate the next usage
+        print("inside memory::update, about to call update_usage")
         usage_t = self.update_usage(interface["free_gate"])
         print_tensor(usage_t, "usage_t/free_gate")
 
@@ -235,7 +244,7 @@ class Memory:
         # writing (i.e. have high cell_memory_weights) with low usage should have
         # their usage increased, which is exactly what is done here.
 
-        print(f"==> function update_usage, {self.usage.shape=}, {cell_write_weights.shape=}")
+        print(f"==> Inside function update_usage, {self.usage.shape=}, {cell_write_weights.shape=}")
         # cell_write_weights = (
         # cell_write_weights.unsqueeze(1) if cell_write_weights.dim() == 1 else cell_write_weights
         # )
@@ -251,7 +260,7 @@ class Memory:
 
         # Finally, we calculate the next usage as defined in the paper.
         usage = usage_after_writes * psi
-        print(f"==> update_usage, {usage=}")
+        print(f"==> inside update_usage, {usage=}")
 
         return usage
 
@@ -535,6 +544,7 @@ if __name__ == "__main__":
     )  # Should be close to 1.0
 
     # Test memory update
+    print("memory.update in if __name__ == '__main__'")
     read_words = memory.update(interface)
 
     # Print results after update
