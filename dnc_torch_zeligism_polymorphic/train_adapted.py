@@ -8,7 +8,7 @@ import sys
 
 import torch
 
-from dnc_adapted import DNC_Adapted
+from dnc_torch_zeligism_polymorphic.dnc_adapted import DNC_Adapted
 from dnc_torch_zeligism.repeat_copy import RepeatCopy
 from dnc_torch_zeligism.training_configs import *
 

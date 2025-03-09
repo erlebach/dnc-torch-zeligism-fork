@@ -11,8 +11,8 @@ from beartype import beartype
 
 from dnc.base import BaseController
 from dnc_torch_zeligism.training_configs import BATCH_SIZE
-from interface_adapted import DNC_InterfaceLayer_Adapted
-from memory_adapted import Memory_Adapted
+from dnc_torch_zeligism_polymorphic.interface_adapted import DNC_InterfaceLayer_Adapted
+from dnc_torch_zeligism_polymorphic.memory_adapted import Memory_Adapted
 
 
 @beartype

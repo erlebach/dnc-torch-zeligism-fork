@@ -1,4 +1,3 @@
-
 # Just a simple configs file with all the hyperparameters you need to set
 
 # Note: 0 sets the seed to torch's initial seed
