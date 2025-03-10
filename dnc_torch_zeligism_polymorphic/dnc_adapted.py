@@ -10,7 +10,13 @@ import torch.nn as nn
 from beartype import beartype
 
 from dnc.base import BaseController
-from dnc_torch_zeligism.training_configs import BATCH_SIZE
+
+# from dnc_torch_zeligism.training_configs import BATCH_SIZE
+from dnc_torch_zeligism_polymorphic.configuration import (
+    controller_config,
+    memory_config,
+    training_config,
+)
 from dnc_torch_zeligism_polymorphic.interface_adapted import DNC_InterfaceLayer_Adapted
 from dnc_torch_zeligism_polymorphic.memory_adapted import Memory_Adapted
 
@@ -25,35 +31,17 @@ class DNC_Adapted(BaseController):
         self,
         input_size: int,
         output_size: int,
-        controller_config: Optional[Dict[str, Any]] = None,
-        memory_config: Optional[Dict[str, Any]] = None,
+        controller_config: Dict[str, Any],
+        memory_config: Dict[str, Any],
         Controller=nn.LSTM,
         **kwargs,
     ):
         super().__init__(**kwargs)
 
-        # Set default configurations if not provided
-        if controller_config is None:
-            controller_config = {"hidden_size": 64, "num_layers": 1}
-
-        if memory_config is None:
-            memory_config = {
-                "memory_size": 128,
-                "word_size": 20,
-                "num_writes": 1,
-                "num_reads": 4,
-                "batch_size": BATCH_SIZE,
-            }
-
         # Save configurations
         self.controller_config = controller_config
 
-        # Initialize memory
-        memory_config_with_batch_size = memory_config.copy()
-        if "batch_size" not in memory_config_with_batch_size:
-            memory_config_with_batch_size["batch_size"] = BATCH_SIZE
-
-        self.memory = Memory_Adapted(**memory_config)
+        self.memory = Memory_Adapted(**memory_config, **training_config)
         self.memory.print_state("DNC constructor")
         # -----------------------------------------
 
@@ -214,6 +202,7 @@ class DNC_Adapted(BaseController):
         return state_dict
 
 
+# ======================================================================
 if __name__ == "__main__":
     """Test the adapted DNC implementation."""
     import sys

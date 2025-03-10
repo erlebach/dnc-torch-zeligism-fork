@@ -12,7 +12,6 @@ from dnc_torch_zeligism.training_configs import *
 from dnc_torch_zeligism_polymorphic.configuration import (
     controller_config,
     memory_config,
-    training_config,
 )
 from dnc_torch_zeligism_polymorphic.dnc_adapted import DNC_Adapted
 
@@ -61,7 +60,7 @@ def train_adapted(model, dataset, num_examples=NUM_EXAMPLES, checkpoint=CHECKPOI
             # Create a fresh model state for evaluation
             # model.init_state()
             # with torch.no_grad():
-                # eval_outputs = model(inputs.clone())
+            # eval_outputs = model(inputs.clone())
 
             dataset.report(data, pred_outputs.data)
             print(f"[{i + 1}/{num_examples}] Loss = {loss.item():.3f}", flush=True)

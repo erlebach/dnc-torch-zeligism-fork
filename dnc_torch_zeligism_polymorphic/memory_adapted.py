@@ -46,6 +46,7 @@ class Memory_Adapted(BaseMemory):
         num_reads=1,
         batch_size=training_config["batch_size"],
         epsilon=1.0e-6,
+        **kwargs,
     ):
         super().__init__()
 
