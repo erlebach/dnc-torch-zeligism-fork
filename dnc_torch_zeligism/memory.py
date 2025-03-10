@@ -1,4 +1,5 @@
 import sys
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -9,18 +10,15 @@ from dnc_torch_zeligism.training_configs import *
 
 """Memory."""
 
-print_interface_counter: int = 0
 
-
-def print_interface(interface: dict[str, torch.Tensor]):
-    global print_interface_counter
-    print_interface_counter += 1
-    print(f"\n==> ENTER print_interface ({print_interface_counter})")
+def print_interface(
+    interface: dict[str, torch.Tensor],
+    msg: Optional[str] = None,
+):
+    print(f"\n==> print_interface ({msg})")
     for key, value in interface.items():
-        print(f"{key}: {value.shape=}, mean: {value.mean().item():.6f}")
+        print(f"{key}: {value.shape=}, norm: {value.norm():.6f}")
     print()
-    #if print_interface_counter == 10:
-        #sys.exit()
 
 
 def print_tensor(tens: torch.Tensor, msg: str):
@@ -39,10 +37,6 @@ class Memory:
         self.num_reads = num_reads
         # Initialize state of memory
         self.init_state()
-
-        print("INSIDE CONSTRUCTOR)")
-        self.print_memory_data()
-        self.print_memory_state()
 
     def init_state(self):
         self.memory_data = torch.zeros(BATCH_SIZE, self.memory_size, self.word_size)
@@ -69,20 +63,19 @@ class Memory:
         print()
 
     # DEBUG
-    def print_memory_state(self):  # W: Missing function or method docstring
-        print("\n=== print_memory_state in dnc_torch_zeligism/memory.py ===")
+    def print_state(self, msg: Optional[str] = None):  # W: Missing function or method docstring
+        print(f"\n=== Memory state ({msg})")
         # Print the norm of each array in the memory state
-        print(f"{self.memory_data.norm()=}")
-        print(f"{self.read_weights.norm()=}")
-        print(f"{self.write_weights.norm()=}")
-        print(f"{self.precedence_weights.norm()=}")
-        print(f"{self.link.norm()=}")
-        print(f"{self.usage.norm()=}")
+        print(f"memory_data norm: {self.memory_data.norm():.6f}")
+        print(f"read_weights norm: {self.read_weights.norm():.6f}")
+        print(f"write_weights norm: {self.write_weights.norm():.6f}")
+        print(f"precedence_weights norm: {self.precedence_weights.norm():.6f}")
+        print(f"link norm: {self.link.norm():.6f}")
+        print(f"usage norm: {self.usage.norm():.6f}")
 
-    def print_memory_data(self):  # W: Missing function or method docstring
-        print("\n=== print_memory_data in dnc_torch_zeligism/ ===")
-        print("Original memory data mean:", self.memory_data.mean().item())
-        print(f"{self.memory_data[0][0:2]=}")
+    def print_memory_data(self, msg: Optional[str] = None):
+        print(f"\n=== Memory data ({msg})")
+        print("Memory data norm:", self.memory_data.norm())
 
     def content_based_address(self, memory_data, keys, strengths):
         """
@@ -167,23 +160,18 @@ class Memory:
         9) Return the words read from memory by the read heads.
         """
 
-        print("========> orig, ENTER update")
-        print_interface(interface)
-
         # Store the interface for debugging
         self.last_interface = interface
 
         # Calculate the next usage
-        print("inside memory::update, about to call update_usage")
+        # print("inside memory::update, about to call update_usage")
         usage_t = self.update_usage(interface["free_gate"])
-        print_tensor(usage_t, "usage_t/free_gate")
+        # print_tensor(usage_t, "usage_t/free_gate")
 
         # Calculate the content-based write addresses
         write_content_weights = self.content_based_address(
             self.memory_data, interface["write_keys"], interface["write_strengths"]
         )
-        # Find the next write weightings using the updated usage
-        print_interface(interface)  # OK
 
         write_weights_t = self.update_write_weights(
             usage_t, interface["write_gate"], interface["allocation_gate"], write_content_weights
@@ -214,16 +202,16 @@ class Memory:
         self.precedence_weights = precedence_weights_t
         self.read_weights = read_weights_t
 
-        print("====> INSIDE update")
-        print(f"{usage_t.shape=}, mean: {usage_t.mean().item():.6f}")
-        print(f"{write_weights_t.shape=}, mean: {write_weights_t.mean().item():.6f}")
-        print(f"{memory_data_t.shape=}, mean: {memory_data_t.mean().item():.6f}")
-        print(f"{link_t.shape=}, mean: {link_t.mean().item():.6f}")
-        print(f"{precedence_weights_t.shape=}, mean: {precedence_weights_t.mean().item():.6f}")
-        print(f"{read_weights_t.shape=}, mean: {read_weights_t.mean().item():.6f}")
+        # print("====> INSIDE update")
+        # print(f"{usage_t.shape=}, mean: {usage_t.mean().item():.6f}")
+        # print(f"{write_weights_t.shape=}, mean: {write_weights_t.mean().item():.6f}")
+        # print(f"{memory_data_t.shape=}, mean: {memory_data_t.mean().item():.6f}")
+        # print(f"{link_t.shape=}, mean: {link_t.mean().item():.6f}")
+        # print(f"{precedence_weights_t.shape=}, mean: {precedence_weights_t.mean().item():.6f}")
+        # print(f"{read_weights_t.shape=}, mean: {read_weights_t.mean().item():.6f}")
 
         # Return the new read words for each read head from new memory data
-        print("====> EXIT update")
+        # print("====> EXIT update")
         return read_weights_t @ memory_data_t
 
     def update_usage(self, free_gate):
@@ -244,7 +232,7 @@ class Memory:
         # writing (i.e. have high cell_memory_weights) with low usage should have
         # their usage increased, which is exactly what is done here.
 
-        print(f"==> Inside function update_usage, {self.usage.shape=}, {cell_write_weights.shape=}")
+        # print(f"==> Inside function update_usage, {self.usage.shape=}, {cell_write_weights.shape=}")
         # cell_write_weights = (
         # cell_write_weights.unsqueeze(1) if cell_write_weights.dim() == 1 else cell_write_weights
         # )
@@ -260,7 +248,7 @@ class Memory:
 
         # Finally, we calculate the next usage as defined in the paper.
         usage = usage_after_writes * psi
-        print(f"==> inside update_usage, {usage=}")
+        # print(f"==> inside update_usage, {usage=}")
 
         return usage
 
@@ -359,26 +347,19 @@ class Memory:
         and then it takes the product of (1 - result) through all write heads.
         """
 
-        print(f"\n========> ENTER update_memory_data")
-        print(f"weights: {weights.shape=}, mean: {weights.mean().item():.6f}")
-        print(f"erases: {erases.shape=}, mean: {erases.mean().item():.6f}")
-        print(f"writes: {writes.shape=}, mean: {writes.mean().item():.6f}")
+        # print(f"\n========> ENTER update_memory_data")
+        # print(f"weights: {weights.shape=}, mean: {weights.mean().item():.6f}")
+        # print(f"erases: {erases.shape=}, mean: {erases.mean().item():.6f}")
+        # print(f"writes: {writes.shape=}, mean: {writes.mean().item():.6f}")
 
         # Take the outer product of the weights and erase vectors per write head.
         weighted_erase = weights.unsqueeze(dim=-1) * erases.unsqueeze(dim=-2)
-        print(f"==> orig, update_memory_data, {weighted_erase.shape=}")
-        # print(f"==> orig, update_memory_data, {weighted_erase=}")
+
         # Take the aggregate erase factor through all write heads.
         erase_factor = torch.prod(1 - weighted_erase, dim=1)
-        print(f"==> orig, update_memory_data, {erase_factor.shape=}")
-        # print(f"{erase_factor=}")
 
         # Calculate the weighted words to add/write to memory.
         write_words = weights.transpose(1, 2) @ writes
-        print(f"==> orig, update_memory_data, {write_words.shape=}")
-        # print(f"==> orig, update_memory_data, {write_words=}")
-
-        print(f"==> orig, update_memory_data, {self.memory_data.shape=}")
 
         # Return the updated memory
         return self.memory_data * erase_factor + write_words
@@ -528,10 +509,10 @@ if __name__ == "__main__":
     }
 
     # Print initial memory state
-    print("\nInitial Memory State:")
-    print(f"Memory data shape: {memory.memory_data.shape}")
-    print(f"Memory data mean: {memory.memory_data.mean().item():.6f}")
-    print(f"Usage vector mean: {memory.usage.mean().item():.6f}")
+    # print("\nInitial Memory State:")
+    # print(f"Memory data shape: {memory.memory_data.shape}")
+    # print(f"Memory data norm: {memory.memory_data.norm():.6f}")
+    # print(f"Usage vector norm: {memory.usage.norm():.6f}")
 
     # Test content-based addressing
     content_weights = memory.content_based_address(
@@ -540,26 +521,18 @@ if __name__ == "__main__":
     print("\nContent-based Addressing Test:")
     print(f"Content weights shape: {content_weights.shape}")
     print(
-        f"Content weights sum: {content_weights.sum(dim=2).mean().item():.6f}"
+        f"Content weights sum norm: {content_weights.sum(dim=2).norm():.6f}"
     )  # Should be close to 1.0
 
     # Test memory update
     print("memory.update in if __name__ == '__main__'")
-    read_words = memory.update(interface)
-
-    # Print results after update
-    print("\nAfter Memory Update:")
-    print(f"Read words shape: {read_words.shape}")
-    print(f"Read words mean: {read_words.mean().item():.6f}")
-    print(f"Updated memory data mean: {memory.memory_data.mean().item():.6f}")
-    print(f"Updated usage vector mean: {memory.usage.mean().item():.6f}")
+    for i in range(2):
+        read_words = memory.update(interface)
+        # memory.print_memory_data(f"Update {i}")
+        memory.print_state(f"Update {i}")
+        print_interface(interface, f"Update {i}")
 
     # Test memory state detachment
     memory.detach_state()
-    print("\nAfter State Detachment:")
-    print(f"Memory data requires grad: {memory.memory_data.requires_grad}")
 
     print("\nMemory Test Completed Successfully!")
-
-    memory.print_memory_data()
-    memory.print_memory_state()

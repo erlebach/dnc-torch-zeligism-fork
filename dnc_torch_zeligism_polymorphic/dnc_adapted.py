@@ -37,7 +37,13 @@ class DNC_Adapted(BaseController):
             controller_config = {"hidden_size": 64, "num_layers": 1}
 
         if memory_config is None:
-            memory_config = {"memory_size": 128, "word_size": 20, "num_writes": 1, "num_reads": 4}
+            memory_config = {
+                "memory_size": 128,
+                "word_size": 20,
+                "num_writes": 1,
+                "num_reads": 4,
+                "batch_size": BATCH_SIZE,
+            }
 
         # Save configurations
         self.controller_config = controller_config
@@ -47,7 +53,9 @@ class DNC_Adapted(BaseController):
         if "batch_size" not in memory_config_with_batch_size:
             memory_config_with_batch_size["batch_size"] = BATCH_SIZE
 
-        self.memory = Memory_Adapted(**memory_config_with_batch_size)
+        self.memory = Memory_Adapted(**memory_config)
+        self.memory.print_state("DNC constructor")
+        # -----------------------------------------
 
         # Calculate controller input size (original input + read vectors)
         self.input_size_raw = input_size
@@ -60,6 +68,9 @@ class DNC_Adapted(BaseController):
         # Set controller's hidden size attribute for easy access
         self.controller.hidden_size = controller_config.get("hidden_size", 64)
 
+        # Initialize state
+        self.init_state()
+
         # Initialize interface
         self.interface = DNC_InterfaceLayer_Adapted(
             input_size=self.controller.hidden_size,
@@ -69,6 +80,8 @@ class DNC_Adapted(BaseController):
             num_reads=self.memory.num_reads,
             batch_size=self.memory.batch_size,
         )
+
+        self.interface.init_state()
 
         # Set interface for memory (validates compatibility)
         self.memory.set_interface(self.interface)
@@ -83,12 +96,17 @@ class DNC_Adapted(BaseController):
         self.input_shape = (None, input_size)
         self.output_shape = (None, output_size)
 
-        # Initialize state
-        self.init_state()
+    def print_state(self, msg: Optional[str] = None):
+        """Print the state of the DNC."""
+        print(f"\n=== DNC state ({msg})")
+        for key, value in self.state.items():
+            print(f"{key}: {value.shape=}, norm: {value.norm():.6f}")
+        self.memory.print_state(msg)
 
     def init_state(self) -> None:
         """Initialize DNC state."""
         # Initialize controller state
+        print("init_state: model init_state")
         num_layers = getattr(self.controller, "num_layers", 1)
         hidden_size = self.controller_config.get("hidden_size", 64)
 
@@ -102,7 +120,6 @@ class DNC_Adapted(BaseController):
 
         # Initialize memory and interface states
         self.memory.init_state()
-        self.interface.init_state()
 
     def detach_state(self) -> None:
         """Detach DNC state from computation graph."""
@@ -164,6 +181,7 @@ class DNC_Adapted(BaseController):
             interface_vectors = self.interface({"output": controller_output})
 
             # Update memory and get read words
+            # read_words = self.memory.update(interface_vectors)
             read_words = self.memory(interface_vectors)
             self.state["read_words"] = read_words
 
@@ -207,7 +225,7 @@ if __name__ == "__main__":
         torch.manual_seed(42)
         np.random.seed(42)
 
-        #print("Testing DNC_Adapted implementation...")
+        # print("Testing DNC_Adapted implementation...")
 
         # Define model parameters
         input_size = 10
@@ -230,48 +248,54 @@ if __name__ == "__main__":
             memory_config=memory_config,
         )
 
-        #print(f"Model created with input_size={input_size}, output_size={output_size}")
-        #print(f"Memory config: {memory_config}")
-        #print(f"Controller config: {controller_config}")
+        # print(f"Model created with input_size={input_size}, output_size={output_size}")
+        # print(f"Memory config: {memory_config}")
+        # print(f"Controller config: {controller_config}")
 
         # Generate random input sequence
         seq_length = 5
         batch_size = BATCH_SIZE
         x = torch.randn(seq_length, batch_size, input_size)
-        #print(f"Input shape: {x.shape}")
+        # print(f"Input shape: {x.shape}")
         # print(f"Input values: {x}")
 
         # Forward pass
-        #print("Running forward pass...")
-        y = model(x)
-        #print("==============================================================")
+        # print("Running forward pass...")
+        print("==============================================================")
+        for i in range(2):
+            y = model(x)
+            print(f"iteration: {i}")
+            print(f"{x.shape=}, {y.shape=}")
+            model.print_state(msg=f"Update {i}")
+            print("==============================================================")
+        quit()
 
         # print(f"Output shape: {y.shape}")
         # print(f"Output sample:\n{y[0, 0, :].detach().numpy()}")
 
         # Test memory state
-        #print("\nMemory state:")
+        # print("\nMemory state:")
         model.debug()
         # quit()
 
         # Test state dictionary
-        #print("\nTesting state dictionary...")
+        # print("\nTesting state dictionary...")
         state_dict = model.get_state_dict()
-        #print(f"State dictionary keys: {list(state_dict.keys())}")
+        # print(f"State dictionary keys: {list(state_dict.keys())}")
 
         # Test detach_state
-        #print("\nTesting state detachment...")
+        # print("\nTesting state detachment...")
         model.detach_state()
-        #print("State detached successfully")
+        # print("State detached successfully")
 
         # Store initial weights for comparison
-        #print("\nStoring initial weights...")
+        # print("\nStoring initial weights...")
         initial_weights = {}
         for name, param in model.named_parameters():
             initial_weights[name] = param.clone().detach()
 
         # Create a simple target and loss function
-        #print("\nPerforming backpropagation...")
+        # print("\nPerforming backpropagation...")
         target = torch.randn(seq_length, batch_size, output_size)
         criterion = torch.nn.MSELoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
@@ -281,26 +305,26 @@ if __name__ == "__main__":
         output = model(x)
         loss = criterion(output, target)
         loss.backward()
-        #print("BEFORE optimizer.step")
+        # print("BEFORE optimizer.step")
         optimizer.step()
 
-        #print(f"Loss after one update: {loss.item()}", flush=True)
+        # print(f"Loss after one update: {loss.item()}", flush=True)
 
         # Check weight changes
-        #print("\nChecking weight changes after backpropagation:")
+        # print("\nChecking weight changes after backpropagation:")
         weight_changes = {}
         for name, param in model.named_parameters():
             weight_change = torch.abs(param - initial_weights[name]).mean().item()
             weight_changes[name] = weight_change
-            #print(f"{name}: mean absolute change = {weight_change}")
+            # print(f"{name}: mean absolute change = {weight_change}")
 
         # Find largest weight change
         max_change_name = max(weight_changes, key=weight_changes.get)
-        #print(
-            #f"\nLargest weight change in: {max_change_name} with change of {weight_changes[max_change_name]}"
-        #)
+        # print(
+        # f"\nLargest weight change in: {max_change_name} with change of {weight_changes[max_change_name]}"
+        # )
 
-        #print("\nDNC_Adapted test completed successfully!")
+        # print("\nDNC_Adapted test completed successfully!")
 
     except ImportError as e:
         print(f"\nERROR: Import error occurred: {e}")

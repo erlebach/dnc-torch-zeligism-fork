@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,16 +12,24 @@ from dnc_torch_zeligism.training_configs import *
 @beartype
 class DNC(nn.Module):
     def __init__(
-        self, input_size, output_size, controller_config, memory_config, Controller=nn.LSTM
+        self,
+        input_size,
+        output_size,
+        controller_config,
+        memory_config,
+        Controller=nn.LSTM,
+        **kwargs,
     ):
-        super().__init__()
+        super().__init__(**kwargs)
 
         # Initialize memory
         self.memory = Memory(**memory_config)
+        self.memory.print_state("DNC constructor")
+        # -------------------------------------------
 
         # First add read vectors' size to controller's input_size
         self.input_size = input_size + self.memory.num_reads * self.memory.word_size
-        # Now initialize controller (LSTM in this case)
+        # Initialize controller (LSTM in this case)
         self.controller = Controller(self.input_size, **controller_config)
         self.controller_config = controller_config
 
@@ -40,6 +50,14 @@ class DNC(nn.Module):
             self.controller.hidden_size + self.memory.num_reads * self.memory.word_size
         )
         self.output_layer = nn.Linear(pre_output_size, self.output_size)
+
+    def print_state(self, msg: Optional[str] = None):
+        """Print the state of the DNC."""
+        print(f"\n=== DNC state ({msg})")
+        print(f"controller_state[0] norm: {self.controller_state[0].norm():.6f}")
+        print(f"controller_state[1] norm: {self.controller_state[1].norm():.6f}")
+        print(f"read_words norm: {self.read_words.norm():.6f}")
+        self.memory.print_state(msg)
 
     def init_state(self):
         """
@@ -95,7 +113,8 @@ class DNC(nn.Module):
 
             # X_t = input ++ read_vectors/read_words
             controller_input = torch.cat(
-                [inputs[i].view(BATCH_SIZE, -1), self.read_words.view(BATCH_SIZE, -1)], dim=1
+                [inputs[i].view(BATCH_SIZE, -1), self.read_words.view(BATCH_SIZE, -1)],
+                dim=1,
             )
             # Add sequence dimension
             controller_input = controller_input.unsqueeze(dim=0)
@@ -110,7 +129,7 @@ class DNC(nn.Module):
             the controller's output to all the layers, and
             then passing the result as an input to memory. """
             interface = self.interface_layer(controller_output)
-            print("before memory_update, call self.memory.update() from DNC::forward")
+            # print("before memory_update, call self.memory.update() from DNC::forward")
             self.read_words = self.memory.update(interface)
 
             pre_output = torch.cat([controller_output, self.read_words.view(BATCH_SIZE, -1)], dim=1)
@@ -196,7 +215,7 @@ if __name__ == "__main__":
     torch.manual_seed(42)
     np.random.seed(42)
 
-    print("Testing DNC implementation...")
+    # print("Testing DNC implementation...")
 
     # Define model parameters
     input_size = 10
@@ -205,7 +224,7 @@ if __name__ == "__main__":
     memory_config = {"memory_size": 128, "word_size": 20, "num_reads": 4, "num_writes": 1}
 
     # Create DNC model
-    print("Creating DNC model...")
+    # print("Creating DNC model...")
     model = DNC(
         input_size=input_size,
         output_size=output_size,
@@ -213,21 +232,27 @@ if __name__ == "__main__":
         memory_config=memory_config,
     )
 
-    print(f"Model created with input_size={input_size}, output_size={output_size}")
-    print(f"Memory config: {memory_config}")
-    print(f"Controller config: {controller_config}")
+    # print(f"Model created with input_size={input_size}, output_size={output_size}")
+    # print(f"Memory config: {memory_config}")
+    # print(f"Controller config: {controller_config}")
 
     # Generate random input sequence
     seq_length = 5
     batch_size = BATCH_SIZE
     x = torch.randn(seq_length, batch_size, input_size)
-    print(f"Input shape: {x.shape}")
+    # print(f"Input shape: {x.shape}")
     # print(f"Input values: {x}")
 
     # Forward pass
     print("Running forward pass...")
-    y = model(x)
-    print("==============================================================")
+    print("=====================================================")
+    for i in range(2):
+        y = model(x)
+        print(f"iteration: {i}")
+        print(f"{x.shape=}, {y.shape=}")
+        model.print_state(msg=f"Update {i}")
+        print("===================================================")
+    quit()
 
     # print(f"Output shape: {y.shape}")
     # print(f"Output sample:\n{y[0, 0, :].detach().numpy()}")

@@ -3,14 +3,14 @@ Training script for the adapted DNC implementation.
 Modeled after the original train.py from dnc_torch_zeligism.
 """
 
-import time
 import sys
+import time
 
 import torch
 
-from dnc_torch_zeligism_polymorphic.dnc_adapted import DNC_Adapted
 from dnc_torch_zeligism.repeat_copy import RepeatCopy
 from dnc_torch_zeligism.training_configs import *
+from dnc_torch_zeligism_polymorphic.dnc_adapted import DNC_Adapted
 
 
 def train_adapted(model, dataset, num_examples=NUM_EXAMPLES, checkpoint=CHECKPOINT):
@@ -28,11 +28,12 @@ def train_adapted(model, dataset, num_examples=NUM_EXAMPLES, checkpoint=CHECKPOI
     """
     # Initialize optimizer
     optimizer = torch.optim.Adam(model.parameters())
+    model.init_state()
 
     # Track training time
     start_time = time.time()
-    print("number samples: ", num_examples, flush=True)
-    print("checkpoint= ", checkpoint)
+    # print("number samples: ", num_examples, flush=True)
+    # print("checkpoint= ", checkpoint)
 
     for i, data in enumerate(dataset.generate(num_examples)):
         # print("NEXT TRAINING SAMPLE", flush=True)
@@ -43,7 +44,13 @@ def train_adapted(model, dataset, num_examples=NUM_EXAMPLES, checkpoint=CHECKPOI
         inputs, true_outputs = data
 
         # Reset model state at the beginning of each sequence
-        model.init_state()
+        # Why reset the state for each sequence?
+        # If I do not initialize the state after each sequence, the code crashes.
+        # One should reinitialize the state after each sequence in the RNN. Ok, but why
+        # reinitialize the memory state as well?
+
+        # model.init_state()   # <<<<<<
+
         # print("exited model.init state", flush=True)
 
         # Forward pass
@@ -52,7 +59,9 @@ def train_adapted(model, dataset, num_examples=NUM_EXAMPLES, checkpoint=CHECKPOI
 
         # Compute loss
         loss = dataset.loss(pred_outputs, true_outputs)
-        # print("loss= ", loss.item(), flush=True)
+        #print("loss= ", loss.item(), flush=True)
+        #if i > 10:
+            #break
 
         # Backward pass
         loss.backward()
@@ -65,10 +74,11 @@ def train_adapted(model, dataset, num_examples=NUM_EXAMPLES, checkpoint=CHECKPOI
         if (i + 1) % checkpoint == 0:
             # Create a fresh model state for evaluation
             model.init_state()
-            with torch.no_grad():
-                eval_outputs = model(inputs.clone())
+            # with torch.no_grad():
+                #eval_outputs = model(inputs.clone())
 
-            dataset.report(data, eval_outputs)
+            #dataset.report(data, eval_outputs)
+            dataset.report(data, pred_outputs.data)
             print(f"[{i + 1}/{num_examples}] Loss = {loss.item():.3f}", flush=True)
             print(f"Time elapsed = {time.time() - start_time:.2f}s")
 

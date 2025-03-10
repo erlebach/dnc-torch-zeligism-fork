@@ -38,6 +38,9 @@ def train(dnc, dataset):
         # Do a forward pass, compute loss, then do a backward pass
         pred_outputs = dnc(inputs)
         loss = dataset.loss(pred_outputs, true_outputs)
+        #print("loss= ", loss.item(), flush=True)
+        #if i > 10:
+            #break
         loss.backward()
 
         # Update parameters using the optimizer
