@@ -3,13 +3,17 @@ Training script for the adapted DNC implementation.
 Modeled after the original train.py from dnc_torch_zeligism.
 """
 
-import sys
 import time
 
 import torch
 
 from dnc_torch_zeligism.repeat_copy import RepeatCopy
 from dnc_torch_zeligism.training_configs import *
+from dnc_torch_zeligism_polymorphic.configuration import (
+    controller_config,
+    memory_config,
+    training_config,
+)
 from dnc_torch_zeligism_polymorphic.dnc_adapted import DNC_Adapted
 
 
@@ -32,52 +36,33 @@ def train_adapted(model, dataset, num_examples=NUM_EXAMPLES, checkpoint=CHECKPOI
 
     # Track training time
     start_time = time.time()
-    # print("number samples: ", num_examples, flush=True)
-    # print("checkpoint= ", checkpoint)
 
     for i, data in enumerate(dataset.generate(num_examples)):
-        # print("NEXT TRAINING SAMPLE", flush=True)
         # Zero gradients
         optimizer.zero_grad()
 
         # Unpack input/output
         inputs, true_outputs = data
 
-        # Reset model state at the beginning of each sequence
-        # Why reset the state for each sequence?
-        # If I do not initialize the state after each sequence, the code crashes.
-        # One should reinitialize the state after each sequence in the RNN. Ok, but why
-        # reinitialize the memory state as well?
-
-        # model.init_state()   # <<<<<<
-
-        # print("exited model.init state", flush=True)
-
         # Forward pass
         pred_outputs = model(inputs.clone())
-        # print("exited model(inputs.clone())", flush=True)
 
         # Compute loss
         loss = dataset.loss(pred_outputs, true_outputs)
-        #print("loss= ", loss.item(), flush=True)
-        #if i > 10:
-            #break
 
         # Backward pass
         loss.backward()
 
         # Update parameters
         optimizer.step()
-        # print("After optimizer.step", flush=True)
 
         # Print report at checkpoints
         if (i + 1) % checkpoint == 0:
             # Create a fresh model state for evaluation
-            model.init_state()
+            # model.init_state()
             # with torch.no_grad():
-                #eval_outputs = model(inputs.clone())
+                # eval_outputs = model(inputs.clone())
 
-            #dataset.report(data, eval_outputs)
             dataset.report(data, pred_outputs.data)
             print(f"[{i + 1}/{num_examples}] Loss = {loss.item():.3f}", flush=True)
             print(f"Time elapsed = {time.time() - start_time:.2f}s")
@@ -98,23 +83,7 @@ def main():
 
     print("Initializing dataset...")
     # Initialize dataset (RepeatCopy with default parameters)
-    print("Before repeat copy", flush=True)
     dataset = RepeatCopy()
-    print("After repeat copy", flush=True)
-
-    # Define controller and memory configurations
-    controller_config = {
-        "hidden_size": HIDDEN_SIZE,
-        "num_layers": NUM_LAYERS,
-    }
-
-    memory_config = {
-        "memory_size": MEMORY_SIZE,
-        "word_size": WORD_SIZE,
-        "num_writes": NUM_WRITES,
-        "num_reads": NUM_READS,
-        "batch_size": BATCH_SIZE,
-    }
 
     print("Initializing DNC_Adapted model...")
     # Initialize the adapted DNC model
@@ -124,10 +93,6 @@ def main():
         controller_config=controller_config,
         memory_config=memory_config,
     )
-
-    print(f"Model created with input_size={dataset.input_size}, output_size={dataset.output_size}")
-    print(f"Memory config: {memory_config}")
-    print(f"Controller config: {controller_config}")
 
     print("Starting training...")
     # Train the model
