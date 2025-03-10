@@ -23,8 +23,26 @@ from dnc_torch_zeligism_polymorphic.memory_adapted import Memory_Adapted
 
 @beartype
 class DNC_Adapted(BaseController):
-    """
-    Adaptation of the original DNC class to inherit from BaseController.
+    """Adapted Differentiable Neural Computer (DNC) implementation.
+
+    This class implements a DNC that inherits from BaseController, providing a polymorphic
+    structure while maintaining the original DNC functionality. The DNC combines a neural
+    network controller with an external memory matrix, allowing for complex, memory-based
+    computations.
+
+    The architecture consists of:
+    - A controller network (typically LSTM) that processes inputs and generates outputs
+    - An external memory matrix that can be read from and written to
+    - Interface mechanisms for memory access and manipulation
+
+    Attributes:
+        input_size_raw: Size of raw input features.
+        input_size: Size of controller input (raw input + read vectors).
+        output_size: Size of output features.
+        controller_config: Configuration dictionary for the controller.
+        memory: Memory_Adapted instance for external memory operations.
+        controller: Neural network controller (typically LSTM).
+        interface: Interface layer for memory operations.
     """
 
     def __init__(
@@ -111,12 +129,10 @@ class DNC_Adapted(BaseController):
 
     def detach_state(self) -> None:
         """Detach DNC state from computation graph."""
-        # Detach controller state
         for key, value in self.state.items():
             if isinstance(value, torch.Tensor):
                 self.state[key] = value.detach()
 
-        # Detach memory state
         self.memory.detach_state()
 
     def debug(self) -> None:
@@ -133,7 +149,6 @@ class DNC_Adapted(BaseController):
         Returns:
             Output tensor of shape (sequence_length, batch_size, output_size)
         """
-        # Detach state from previous computation graph
         self.detach_state()
 
         # Prepare output container
