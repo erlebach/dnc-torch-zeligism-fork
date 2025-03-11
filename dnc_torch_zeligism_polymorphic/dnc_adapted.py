@@ -59,7 +59,8 @@ class DNC_Adapted(BaseController):
         # Save configurations
         self.controller_config = controller_config
 
-        self.memory = Memory_Adapted(**memory_config, **training_config)
+        common_dict = {**memory_config, **training_config}
+        self.memory = Memory_Adapted(**common_dict)
         self.memory.print_state("DNC constructor")
         # -----------------------------------------
 
