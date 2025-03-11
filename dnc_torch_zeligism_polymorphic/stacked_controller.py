@@ -1,6 +1,5 @@
 # stacked_controller.py
 
-from typing import List
 
 import torch
 import torch.nn as nn
@@ -20,7 +19,7 @@ class StackedController(nn.Module):
         controller_config: dict,
         memory_config: dict,
         use_rms_norm: bool = False,
-        **kwargs
+        **kwargs,
     ):
         super().__init__()
         self.num_layers = num_layers
@@ -45,6 +44,8 @@ class StackedController(nn.Module):
             self.rms_norms = nn.ModuleList([RMSNormLayer(output_size) for _ in range(num_layers)])
 
         # Projection layer for the first residual connection (if input_size != output_size)
+        # Perhaps a linear layers between successive memory layers is necessary like
+        #    in a transformer.
         self.needs_projection = input_size != output_size
         if self.needs_projection:
             self.projection = nn.Linear(input_size, output_size)
@@ -87,14 +88,10 @@ class StackedController(nn.Module):
         return x
 
 
-#----------------------------------------------------------------------
+# ----------------------------------------------------------------------
 if __name__ == "__main__":
     # Test the StackedController
-    stacked_config = {
-        "input_size": 10,
-        "output_size": 5,
-        "num_layers": 3
-    }
+    stacked_config = {"input_size": 10, "output_size": 5, "num_layers": 3}
     controller_config = {"hidden_size": 64, "num_layers": 1}
     memory_config = {
         "memory_size": 128,
@@ -115,7 +112,7 @@ if __name__ == "__main__":
     # Generate random input sequence
     seq_length = 5
     batch_size = 8
-    input_size = stacked_config['input_size']
+    input_size = stacked_config["input_size"]
     x = torch.randn(seq_length, batch_size, input_size)
 
     # Forward pass

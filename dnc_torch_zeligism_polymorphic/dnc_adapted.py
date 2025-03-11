@@ -221,8 +221,6 @@ class DNC_Adapted(BaseController):
 # ======================================================================
 if __name__ == "__main__":
     """Test the adapted DNC implementation."""
-    import sys
-
     import numpy as np
 
     try:
@@ -259,7 +257,7 @@ if __name__ == "__main__":
 
         # Generate random input sequence
         seq_length = 5
-        batch_size = training_config['batch_size']
+        batch_size = training_config["batch_size"]
         x = torch.randn(seq_length, batch_size, input_size)
         # print(f"Input shape: {x.shape}")
         # print(f"Input values: {x}")
