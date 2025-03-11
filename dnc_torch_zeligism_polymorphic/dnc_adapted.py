@@ -54,6 +54,10 @@ class DNC_Adapted(BaseController):
         Controller=nn.LSTM,
         **kwargs,
     ):
+        """Initialize the DNC_Adapted model.
+
+        Make sure `batch_size` is included in `memory_config`
+        """
         super().__init__(**kwargs)
 
         # Save configurations

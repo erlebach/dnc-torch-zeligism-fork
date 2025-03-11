@@ -155,14 +155,14 @@ if __name__ == "__main__":
     input_size = 10
     output_size = 5
     controller_config = {"hidden_size": 64, "num_layers": 1}
-    # memory_config = {
-    #     # Same values as in configuration.py
-    #     "memory_size": 32,  # 128,
-    #     "word_size": 8,  # 20,
-    #     "num_reads": 4,
-    #     "num_writes": 1,
-    #     "batch_size": 8,
-    # }
+    memory_config = {
+        # Same values as in configuration.py
+        "memory_size": 128,
+        "word_size": 20,
+         "num_reads": 4,
+        "num_writes": 1,
+        "batch_size": 8,
+    }
     memory_config["batch_size"] = training_config["batch_size"]
 
     # Create a parallel controller

@@ -1,22 +1,23 @@
 # train_parallel.py
 
 import argparse
+import sys
 import time
-from typing import Dict, Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.tensorboard import SummaryWriter
+from torch import Tensor
+from torch.utils.tensorboard.writer import SummaryWriter  # type: ignore
 
+from dnc_torch_zeligism.repeat_copy import RepeatCopy
 from dnc_torch_zeligism_polymorphic.configuration import (
     controller_config,
     memory_config,
     training_config,
 )
 from dnc_torch_zeligism_polymorphic.parallel_controller import ParallelController
-from repeat_copy import RepeatCopy
 
 
 def parse_arguments():
@@ -63,29 +64,40 @@ def parse_arguments():
 
 
 def train(model: nn.Module, task: RepeatCopy, args: argparse.Namespace) -> None:
-    """Train the model on the repeat-copy task."""
+    """Train the model on the repeat-copy task.
+
+    Args:
+        model: The neural network model to train.
+        task: The RepeatCopy task instance.
+        args: Command line arguments containing training parameters.
+
+    Returns:
+        None
+
+    """
     # Set up optimizer and loss function
-    optimizer = optim.RMSprop(model.parameters(), lr=args.learning_rate)
-    criterion = nn.BCELoss()
+    # optimizer = optim.RMSprop(model.parameters(), lr=args.learning_rate)
+    optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate)
+    # criterion = nn.BCELoss()
 
     # Set up TensorBoard writer
     writer = SummaryWriter(args.log_dir)
 
     # Training loop
     start_time = time.time()
-    for i in range(args.num_examples):
-        # Generate a new example
-        seq_len, seq, target = task.generate_example()
+    for i, data in enumerate(task.generate(args.num_examples)):
+        # Unpack input/output
+        inputs, true_outputs = data
 
         # Reset model state
         if hasattr(model, "detach_state"):
             model.detach_state()
 
         # Forward pass
-        output = model(seq)
+        pred_outputs = model(inputs)
 
         # Compute loss
-        loss = criterion(output, target)
+        loss: Tensor = task.loss(pred_outputs, true_outputs)
 
         # Backward pass and optimize
         optimizer.zero_grad()
@@ -94,12 +106,16 @@ def train(model: nn.Module, task: RepeatCopy, args: argparse.Namespace) -> None:
 
         # Log progress
         if (i + 1) % args.checkpoint == 0:
+            # Report on the task
+            task.report(data, pred_outputs.data)
+
             elapsed_time = time.time() - start_time
             examples_per_second = args.checkpoint / elapsed_time
             print(
                 f"[{i+1}/{args.num_examples}] Loss = {loss.item():.3f}, Examples/sec = {examples_per_second:.2f}"
             )
             writer.add_scalar("Loss/train", loss.item(), i + 1)
+            print(f"Time elapsed = {time.time() - start_time}")
             start_time = time.time()
 
             # Save model checkpoint
@@ -124,11 +140,18 @@ def main():
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
-    # Update batch size in memory_config
+    # Update batch_size in memory_config
     memory_config["batch_size"] = args.batch_size
 
-    # Create task
-    task = RepeatCopy(batch_size=args.batch_size)
+    # Create a config dictionary to pass to RepeatCopy
+    task_config = {
+        "batch_size": args.batch_size,
+        # Add other necessary configuration parameters here
+    }
+
+    # Create task with config parameter instead of batch_size
+    # task = RepeatCopy(config=task_config)
+    task = RepeatCopy()
 
     # Create model
     model = ParallelController(
@@ -143,12 +166,16 @@ def main():
     )
 
     # Print model summary
+    print("=====================================================================")
     print(f"Model: Parallel Controller with {args.num_memories} memory units")
     print(f"Input size: {task.input_size}, Output size: {task.output_size}")
     print(f"Using projections: {args.use_projections}")
     print(f"Using RMS normalization: {args.use_rms_norm}")
+    print(f"Learning Rate: {args.learning_rate}")
+    print(f"Number Memories: {args.num_memories}")
     print(f"Combination method: {args.combination_method}")
     print(f"Total parameters: {sum(p.numel() for p in model.parameters())}")
+    print("=====================================================================")
 
     # Train the model
     train(model, task, args)
