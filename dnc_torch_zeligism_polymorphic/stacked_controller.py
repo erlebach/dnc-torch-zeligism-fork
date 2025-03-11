@@ -6,9 +6,7 @@ import torch
 import torch.nn as nn
 
 from dnc_torch_zeligism_polymorphic.dnc_adapted import DNC_Adapted
-from dnc_torch_zeligism_polymorphic.rms_norm_layer import (
-    RMSNormLayer,  # Assuming this is implemented
-)
+from dnc_torch_zeligism_polymorphic.rms_norm_layer import RMSNormLayer
 
 
 class StackedController(nn.Module):
@@ -22,6 +20,7 @@ class StackedController(nn.Module):
         controller_config: dict,
         memory_config: dict,
         use_rms_norm: bool = False,
+        **kwargs
     ):
         super().__init__()
         self.num_layers = num_layers
@@ -88,11 +87,14 @@ class StackedController(nn.Module):
         return x
 
 
+#----------------------------------------------------------------------
 if __name__ == "__main__":
     # Test the StackedController
-    input_size = 10
-    output_size = 5
-    num_layers = 3
+    stacked_config = {
+        "input_size": 10,
+        "output_size": 5,
+        "num_layers": 3
+    }
     controller_config = {"hidden_size": 64, "num_layers": 1}
     memory_config = {
         "memory_size": 128,
@@ -104,9 +106,7 @@ if __name__ == "__main__":
 
     # Create a stacked controller
     model = StackedController(
-        num_layers=num_layers,
-        input_size=input_size,
-        output_size=output_size,
+        **stacked_config,
         controller_config=controller_config,
         memory_config=memory_config,
         use_rms_norm=True,
@@ -115,6 +115,7 @@ if __name__ == "__main__":
     # Generate random input sequence
     seq_length = 5
     batch_size = 8
+    input_size = stacked_config['input_size']
     x = torch.randn(seq_length, batch_size, input_size)
 
     # Forward pass
